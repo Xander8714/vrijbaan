@@ -26,6 +26,14 @@ niets aan te maken bij Playtomic zelf om te beginnen.
 - **Bevestigd: geen authenticatie nodig.** Max 25 uur per request.
 - Met de twee tenant_id's hierboven kun je dit vandaag al testen voor WePadel
   en PADEL25, zonder een account aan te maken.
+- Client gebouwd in `src/lib/scrapers/playtomic.ts`, gebruikt door
+  `scripts/poll-availability.ts`. **Niet live geverifieerd**: `api.playtomic.io`
+  gaf in de sandbox waarin dit gebouwd is een CloudFront 403 "Request blocked"
+  op elk pad, inclusief de root `/` (dus niet iets aan deze specifieke query) —
+  terwijl `playtomic.io` (marketing-site, andere CloudFront-distributie) prima
+  bereikbaar was. Dat wijst op een IP-reputatie/WAF-blok op dat sandbox-netwerk.
+  Draai het script een keer vanaf een gewone verbinding en vergelijk de ruwe
+  JSON met de types in dat bestand voordat je dit vertrouwt.
 
 ## 2. KNLTB Meet & Play (Hofgeest, club 29942, en de andere verenigingsclubs)
 
@@ -63,10 +71,15 @@ niets aan te maken bij Playtomic zelf om te beginnen.
 ## 4. Stripe — zie README.md
 
 ## Samenvatting: wat te doen in Claude Code
-1. Test Route B (Playtomic) meteen tegen WePadel/PADEL25 met de tenant_id's
-   hierboven — geen account nodig.
+1. ~~Test Route B (Playtomic) tegen WePadel/PADEL25~~ — client gebouwd
+   (`src/lib/scrapers/playtomic.ts`), maar niet live bevestigd door een
+   netwerkblok in de bouw-sandbox. Verifieer dit als eerste vanaf een gewone
+   verbinding voordat je erop vertrouwt.
 2. Zoek uit welk boekingssysteem Peakz en Overhout gebruiken.
 3. ~~Bouw een Playwright-script voor Meet & Play~~ — gedaan, incl.
-   datumnavigatie (`scripts/scrape-meetandplay.ts`). Nog open: koppelen aan
-   polling-laag + database (zie PROJECTPLAN.md §6).
+   datumnavigatie (`scripts/scrape-meetandplay.ts`), end-to-end geverifieerd.
 4. Vraag officiële Playtomic-toegang aan zodra je een werkend prototype hebt.
+5. ~~Bouw de polling-laag (diff + notificatie) + Supabase-opslag~~ — gedaan
+   (`scripts/poll-availability.ts`, `supabase/schema.sql`). Niet zelf getest:
+   de Supabase-lees/schrijfcyclus en de Telegram-notificatie (geen
+   credentials beschikbaar in de bouw-sandbox).

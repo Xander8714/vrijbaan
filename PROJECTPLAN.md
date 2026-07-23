@@ -107,12 +107,110 @@ Twee losse problemen, één regionale app om mee te beginnen, met een landelijk 
 - Welk boekingssysteem gebruiken Peakz Padel Haarlem en Racketclub Overhout?
   Niet gevonden op Playtomic — "Matchable" kwam naar voren voor Peakz, nog te bevestigen.
 
-## 8. Status scraper Meet & Play (bijgewerkt 23 juli 2026)
+## 8. Status scraper + polling-laag (bijgewerkt 23 juli 2026)
 
 - `scripts/scrape-meetandplay.ts`: end-to-end getest tegen Hofgeest (29942).
   Sport- en tijdslot-selectors kloppen nog. Datumnavigatie toegevoegd (accepteert
   optioneel `YYYY-MM-DD`-argument) — zie API_REQUIREMENTS.md §2 voor de
   technische details (Pikaday + Livewire `.set()`-aanroep).
-- Nog niet gedaan: polling-laag (cron + diff + notificatie) en koppeling aan
-  Supabase, zodat de Radar-pagina uit de database leest i.p.v. mock-data in
-  `src/lib/clubs.ts`. Dit is de volgende stap in de bouwvolgorde hierboven.
+- `scripts/poll-availability.ts`: polling-job gebouwd (vandaag + 2 dagen
+  vooruit), pollt Hofgeest via de Meet & Play-scraper en WePadel/PADEL25 via
+  Playtomic, diff't tegen `club_beschikbaarheid` in Supabase (nieuwe tabel,
+  zie `supabase/schema.sql`) en stuurt een Telegram-bericht bij een nieuw
+  slot. Bedoeld om extern gepland te worden (Vercel Cron/Railway), niet als
+  onderdeel van de Next.js request-cyclus.
+- `src/app/radar/page.tsx` leest nu live uit `club_beschikbaarheid` voor de
+  gekoppelde clubs; overige clubs tonen nog de handmatige statustekst.
+- **Playtomic-client (`src/lib/scrapers/playtomic.ts`) is NIET live
+  geverifieerd**: `api.playtomic.io` gaf in de sandbox waarin dit gebouwd is
+  op elk pad (ook root `/`) een CloudFront 403 "Request blocked", terwijl
+  `playtomic.io` zelf gewoon bereikbaar was — vermoedelijk een IP-reputatie-
+  blok op dat sandbox-netwerk, geen probleem met de query zelf. Draai
+  `npm run poll:availability` een keer vanaf een gewone (niet-datacenter)
+  verbinding en vergelijk de ruwe JSON met de types in dat bestand voordat je
+  hierop vertrouwt.
+- Ook niet end-to-end getest: de Supabase-lees/schrijf-cyclus en de Telegram-
+  notificatie zelf — die sandbox had geen `.env` met echte Supabase-
+  credentials of een Telegram-bot-token. Wel bevestigd dat het script bij
+  ontbrekende config een duidelijke foutmelding geeft i.p.v. stil te falen.
+- Nog open: Pim Mulier/Schoten/Groeneveen (Meet & Play-clubs, andere club-id's
+  dan Hofgeest) en Peakz/Overhout (systeem nog onbevestigd) toevoegen aan
+  `src/lib/pollConfig.ts` zodra hun club-id/tenant_id bekend is.
+
+## 9. Mobiele app (native iOS + Android, App Store/Play Store)
+
+**Besluit (23 juli 2026), na afweging van 5 punten:**
+
+### 9.1 Aanpak: React Native / Expo
+Geen aparte Swift + Kotlin trajecten. Eén codebase, `vrijbaan-mobile` (al
+opgezet, `lineup.ts` hergebruikt en type-checkt schoon). Belangrijkste
+afweging: volledig native geeft net iets meer polish maar kost 2x bouw- en
+onderhoudstijd — voor een utility-app (lijsten, formulieren, berekeningen,
+geen zware graphics/camera/ML) is dat niet te verantwoorden voor een solo
+developer. EAS Build/Submit automatiseert bovendien het grootste deel van
+signing/provisioning (zie 9.5).
+
+### 9.2 Backend-hergebruik
+- Monorepo: `packages/shared` (types, `lineup.ts`, `clubs.ts`, Supabase-queries)
+  geïmporteerd door zowel `apps/web` als `apps/mobile` — stopt met kopiëren
+  tussen web en mobile, voorkomt drift.
+- Supabase-JS werkt in React Native met een AsyncStorage-adapter i.p.v.
+  cookies; zelfde project, zelfde RLS-policies, geen aparte backend nodig.
+
+### 9.3 Monetisatie mobiel — eenmalige aankoop (bijgesteld obv feedback Xander)
+Geen abonnement op mobiel — dus geen doorlopende Apple/Google-commissie om
+op te volgen en geen renewal-/opzeg-webhooks aan mobiele kant te bouwen.
+- **Product:** één non-consumable in-app-aankoop ("Pro" — eenmalig), via
+  StoreKit (iOS) en Play Billing (Android). Simpeler dan een abonnement:
+  geen subscription groups, geen proration, geen maandelijkse renewal-state.
+- **Aanbevolen library:** RevenueCat — valideert de aankoopbon voor beide
+  platforms en abstraheert het verschil tussen StoreKit/Play Billing. Voorkomt
+  dat je zelf een receipt-validatieserver bouwt.
+- **Datamodel:** `profiles.subscription_status` uitbreiden met een losse
+  waarde/vlag `pro_lifetime` (naast het bestaande `free`/`pro` voor de
+  web-Stripe-maandabonnement) — beide geven dezelfde featuregate, maar de
+  bron van waarheid verschilt (Stripe-webhook vs. RevenueCat-webhook).
+- **Web blijft ongewijzigd:** Stripe-maandabonnement (€4,99) blijft de
+  webflow; dit raakt alleen de mobiele aankoopervaring.
+- **Prijs:** kies zelf een eenmalig bedrag (bv. rond 3-4x de maandprijs als
+  vuistregel) — dat is een prijsbeslissing die ik niet voor je maak.
+
+### 9.4 Scope v1
+Opstelling-optimizer + login + eenmalige Pro-aankoop + notificatie-permissie
+alvast regelen. Radar volgt in v2, zodra de webkant een echte polling-laag
+heeft (zie §8) — anders bouw je nu een mobiel scherm op mock-data dat je
+straks toch overdoet.
+
+### 9.5 Notificaties
+Expo push notifications (`expo-notifications`, Expo Push Token per gebruiker
+in Supabase) — Expo routeert zelf naar APNs/FCM, geen losse certificaten
+nodig. Telegram-bot blijft naast native push bestaan voor webgebruikers
+zonder de app.
+
+### 9.6 Store-vereisten
+- Apple Developer Program (\$99/jaar) en Google Play Console (\$25 eenmalig):
+  account, identiteit en betaling moet Xander zelf regelen.
+- Privacybeleid-URL en data-safety/App Privacy-formulier — content door
+  Claude voor te bereiden.
+- Dankzij 9.3 (geen abonnement, geen losse betaalprovider in-app) valt de
+  zwaarste App Review-categorie (3.1.1 in-app purchase compliance) grotendeels
+  weg — wel nog gewoon door StoreKit/Play Billing zelf.
+- EAS beheert certificaten/provisioning-profiles/keystores automatisch.
+
+### 9.7 Stappenplan
+1. Monorepo opzetten (`packages/shared`, `apps/web`, `apps/mobile`) zonder de
+   werkende webapp te breken.
+2. Supabase RN-client (AsyncStorage-adapter) toevoegen, login/sessie testen
+   in Expo.
+3. RevenueCat-account + "Pro"-product (non-consumable) instellen in App Store
+   Connect en Play Console.
+4. RevenueCat SDK in de Expo-app; bij succesvolle aankoop schrijf naar
+   `profiles.pro_lifetime` via een Supabase Edge Function (webhook van
+   RevenueCat, niet client-side).
+5. Opstelling-scherm afwerken met echte auth + Pro-featuregate.
+6. Expo push: permissie-flow + tokenregistratie in Supabase.
+7. Xander maakt Apple Developer + Google Play Console account aan; Claude
+   bereidt privacybeleid, store-listing teksten en data-safety-antwoorden voor.
+8. EAS Build (iOS + Android) → TestFlight / interne Android-testtrack.
+9. Store-review indienen.
+10. Radar (v2) pas nadat de webkant een echte polling-laag heeft.
