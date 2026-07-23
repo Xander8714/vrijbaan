@@ -2,9 +2,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CLUBS } from "@/lib/clubs";
+import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const GRATIS_LIMIET = 1;
+
+type Beschikbaarheid = { slots: { startTime: string }[]; bijgewerktOp: string };
 
 export default function RadarPage() {
   const [gevolgd, setGevolgd] = useState<Set<string>>(new Set());
@@ -12,6 +15,7 @@ export default function RadarPage() {
   const [isPro, setIsPro] = useState(false);
   const [laden, setLaden] = useState(true);
   const [limietMelding, setLimietMelding] = useState(false);
+  const [beschikbaarheid, setBeschikbaarheid] = useState<Map<string, Beschikbaarheid>>(new Map());
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -26,6 +30,25 @@ export default function RadarPage() {
       setIsPro(profiel?.subscription_status === "pro");
       setLaden(false);
     }).catch(() => setLaden(false));
+  }, []);
+
+  useEffect(() => {
+    const laadBeschikbaarheid = async () => {
+      try {
+        const supabase = supabaseBrowser();
+        const vandaag = new Date().toISOString().slice(0, 10);
+        const { data } = await supabase
+          .from("club_beschikbaarheid")
+          .select("club_id, slots, bijgewerkt_op")
+          .eq("datum", vandaag);
+        const map = new Map<string, Beschikbaarheid>();
+        (data ?? []).forEach((row) => map.set(row.club_id, { slots: row.slots, bijgewerktOp: row.bijgewerkt_op }));
+        setBeschikbaarheid(map);
+      } catch {
+        // radar blijft bruikbaar met de statische status-tekst als dit faalt
+      }
+    };
+    laadBeschikbaarheid();
   }, []);
 
   const toggle = async (id: string) => {
@@ -62,12 +85,27 @@ export default function RadarPage() {
       <div className="mt-8 space-y-3">
         {CLUBS.map((club) => {
           const isGevolgd = gevolgd.has(club.id);
+          const live = beschikbaarheid.get(club.id);
+          const wordtGepolled = club.id in POLL_CONFIG;
           return (
             <div key={club.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div>
                 <p className="font-semibold text-slate-900">{club.naam}</p>
                 <p className="text-sm text-slate-500">{club.plaats} · {club.banen} banen · {club.systeem}</p>
-                <p className="mt-1 text-xs text-amber-700">{club.status}</p>
+                {live ? (
+                  <p className="mt-1 text-xs text-emerald-700">
+                    {live.slots.length > 0
+                      ? `${live.slots.length} vrije sloten vandaag`
+                      : "Geen vrije sloten meer vandaag"}
+                    {" · bijgewerkt "}
+                    {new Date(live.bijgewerktOp).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {club.status}
+                    {wordtGepolled ? " · nog geen meting binnen" : " · nog niet gekoppeld"}
+                  </p>
+                )}
               </div>
               <button onClick={() => toggle(club.id)} className={`rounded-md px-4 py-2 text-sm font-medium transition ${isGevolgd ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
                 {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
@@ -76,7 +114,7 @@ export default function RadarPage() {
           );
         })}
       </div>
-      <p className="mt-8 text-xs text-slate-400">Beschikbaarheid is nog mock-data. Zie API_REQUIREMENTS.md en src/lib/scrapers/meetandplay.ts voor de status van de live koppeling.</p>
+      <p className="mt-8 text-xs text-slate-400">Live beschikbaarheid staat aan voor Hofgeest (Meet &amp; Play), WePadel en PADEL25 (Playtomic) — zie scripts/poll-availability.ts. Overige clubs tonen nog de handmatige status. Zie PROJECTPLAN.md §7 en API_REQUIREMENTS.md voor de details per club.</p>
     </main>
   );
 }

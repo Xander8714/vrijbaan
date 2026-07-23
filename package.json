@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "scrape:meetandplay": "tsx scripts/scrape-meetandplay.ts"
+    "scrape:meetandplay": "tsx scripts/scrape-meetandplay.ts",
+    "poll:availability": "tsx scripts/poll-availability.ts"
   },
   "dependencies": {
     "next": "16.2.11",

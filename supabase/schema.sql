@@ -35,3 +35,17 @@ create or replace function public.handle_new_user() returns trigger as $$
 begin insert into public.profiles (id, email) values (new.id, new.email); return new; end;
 $$ language plpgsql security definer;
 create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
+
+-- Laatst bekende beschikbaarheid per club per dag (bijgewerkt door scripts/poll-availability.ts).
+-- Dient als "vorige stand" voor de polling-diff én als databron voor de Radar-pagina.
+create table if not exists club_beschikbaarheid (
+  club_id text not null,
+  datum date not null,
+  slots jsonb not null default '[]',
+  slots_hash text not null,
+  bijgewerkt_op timestamptz not null default now(),
+  primary key (club_id, datum)
+);
+alter table club_beschikbaarheid enable row level security;
+-- Geen persoonlijke data — iedereen mag lezen. Schrijven gebeurt alleen via de service-role key (RLS-bypass).
+create policy "iedereen mag beschikbaarheid lezen" on club_beschikbaarheid for select using (true);
