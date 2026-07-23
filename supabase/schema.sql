@@ -21,7 +21,8 @@ create table if not exists team_spelers (
   id uuid primary key default gen_random_uuid(),
   team_id uuid not null references teams(id) on delete cascade,
   naam text not null,
-  speelsterkte int not null check (speelsterkte between 1 and 9)
+  speelsterkte numeric(3,1) not null check (speelsterkte between 1 and 9), -- tot 1 decimaal, bv. 6.5
+  bondsnummer text
 );
 alter table profiles enable row level security;
 alter table gevolgde_clubs enable row level security;
