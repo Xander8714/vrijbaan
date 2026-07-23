@@ -7,23 +7,29 @@
  * bij Playtomic. De enige betrouwbare aanpak is de pagina echt laden en
  * bedienen zoals een gebruiker dat doet.
  *
- * GEVERIFIEERDE SELECTORS (via devtools/JS-inspectie op Hofgeest, club 29942):
+ * GEVERIFIEERD END-TO-END (23 juli 2026, tegen Hofgeest / club 29942):
  * - Sportfilter:   select#sportId  (wire:model.live="tenantSportId")
  *                  option value="1" = Tennis, value="2" = Padel
  * - Tijdslots:     input[name="time"]  → .value is de starttijd, bv. "08:00"
  *                  (gerenderd binnen <div class="mp-page-filters-time">)
+ * - Datumkiezer:   #date is een READONLY input bediend door een Pikaday-
+ *                  widget (wire:ignore, dus Livewire rendert 'm niet zelf om).
+ *                  Pikaday's onSelect-callback roept handmatig
+ *                  `window.Livewire.find(<wireId>).set('date', 'DD-MM-YYYY')`
+ *                  aan — er is geen native <input type="date">. Dit script
+ *                  roept exact diezelfde Livewire-call aan i.p.v. de
+ *                  kalender-UI te bedienen (stabieler: geen popup-positionering
+ *                  of maand-navigatie nodig). minDate staat op "vandaag";
+ *                  dagen in het verleden opvragen levert een foutmelding.
  *
- * NOG NIET GEVERIFIEERD:
- * - De datumkiezer (geen native <input type="date"> gevonden — vermoedelijk
- *   een custom widget). Dit script gebruikt daarom standaard de datum van
- *   vandaag (wat de pagina zonder ingrijpen al toont). Datumnavigatie is de
- *   volgende stap zodra je dit script lokaal kunt draaien en de datum-UI
- *   kunt inspecteren.
- * - NIET GETEST IN DEZE SANDBOX: netwerk-allowlist blokkeerde de download
- *   van de Chromium-browser hier. Draai dit een keer lokaal om te bevestigen.
+ * BELANGRIJKE VAL: een lege slots-array betekent niet per se een kapotte
+ * scraper — laat op de avond (na sluitingstijd/laatste boekbare slot) is een
+ * lege lijst voor "vandaag" een geldig, echt resultaat. Geverifieerd door
+ * dezelfde club voor "morgen" op te vragen: die gaf gewoon 21 sloten terug.
  *
  * Gebruik:
  *   npx tsx scripts/scrape-meetandplay.ts 29942
+ *   npx tsx scripts/scrape-meetandplay.ts 29942 2026-07-24
  */
 
 import { chromium } from "playwright";
@@ -34,11 +40,32 @@ export type MeetAndPlaySlot = {
 
 export type MeetAndPlayResultaat = {
   clubId: string;
-  datum: string; // YYYY-MM-DD, zoals getoond door de pagina op moment van scrapen
+  datum: string; // YYYY-MM-DD, de opgevraagde datum
   slots: MeetAndPlaySlot[];
 };
 
-export async function scrapeMeetAndPlay(clubId: string): Promise<MeetAndPlayResultaat> {
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toNLDate(isoDatum: string): string {
+  const [jaar, maand, dag] = isoDatum.split("-");
+  return `${dag}-${maand}-${jaar}`;
+}
+
+export async function scrapeMeetAndPlay(
+  clubId: string,
+  datum: string = todayISO() // YYYY-MM-DD
+): Promise<MeetAndPlayResultaat> {
+  if (!ISO_DATE_RE.test(datum)) {
+    throw new Error(`Ongeldige datum "${datum}" — gebruik YYYY-MM-DD.`);
+  }
+  if (datum < todayISO()) {
+    throw new Error(`Datum ${datum} ligt in het verleden — Meet & Play staat alleen vandaag of later toe.`);
+  }
+
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
@@ -55,9 +82,31 @@ export async function scrapeMeetAndPlay(clubId: string): Promise<MeetAndPlayResu
       page.waitForResponse((res) => res.url().includes("/livewire/update"), { timeout: 10000 }),
       page.selectOption("#sportId", "2"),
     ]);
-
-    // Geef de DOM even tijd om na de Livewire-response te her-renderen.
     await page.waitForTimeout(500);
+
+    // Alleen navigeren als er een andere dag dan vandaag is opgevraagd —
+    // de pagina toont "vandaag" al zonder ingrijpen.
+    if (datum !== todayISO()) {
+      const wireId = await page.evaluate(() => {
+        const dateInput = document.querySelector("#date");
+        return dateInput?.closest("[wire\\:id]")?.getAttribute("wire:id") ?? null;
+      });
+      if (!wireId) {
+        throw new Error("Kon het Livewire-component voor de datumkiezer (#date) niet vinden.");
+      }
+
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes("/livewire/update"), { timeout: 10000 }),
+        page.evaluate(
+          ({ wireId, nlDatum }) => {
+            // @ts-expect-error window.Livewire wordt door meetandplay.nl zelf geinjecteerd
+            return window.Livewire.find(wireId).set("date", nlDatum);
+          },
+          { wireId, nlDatum: toNLDate(datum) }
+        ),
+      ]);
+      await page.waitForTimeout(500);
+    }
 
     const startTimes = await page.$$eval('input[name="time"]', (inputs) =>
       inputs.map((el) => (el as HTMLInputElement).value)
@@ -65,7 +114,7 @@ export async function scrapeMeetAndPlay(clubId: string): Promise<MeetAndPlayResu
 
     return {
       clubId,
-      datum: new Date().toISOString().slice(0, 10),
+      datum,
       slots: startTimes.map((startTime) => ({ startTime })),
     };
   } finally {
@@ -73,10 +122,11 @@ export async function scrapeMeetAndPlay(clubId: string): Promise<MeetAndPlayResu
   }
 }
 
-// CLI: node/tsx scripts/scrape-meetandplay.ts <clubId>
+// CLI: npx tsx scripts/scrape-meetandplay.ts <clubId> [YYYY-MM-DD]
 if (require.main === module) {
   const clubId = process.argv[2] ?? "29942";
-  scrapeMeetAndPlay(clubId)
+  const datum = process.argv[3]; // optioneel, default vandaag
+  scrapeMeetAndPlay(clubId, datum)
     .then((resultaat) => {
       console.log(JSON.stringify(resultaat, null, 2));
     })
