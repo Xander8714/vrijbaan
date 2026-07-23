@@ -107,9 +107,16 @@ export default function RadarPage() {
                   </p>
                 )}
               </div>
-              <button onClick={() => toggle(club.id)} className={`rounded-md px-4 py-2 text-sm font-medium transition ${isGevolgd ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
-                {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                <button onClick={() => toggle(club.id)} className={`rounded-md px-4 py-2 text-sm font-medium transition ${isGevolgd ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
+                  {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
+                </button>
+                {club.boekingsUrl && (
+                  <a href={club.boekingsUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-emerald-700 underline">
+                    Boek hier →
+                  </a>
+                )}
+              </div>
             </div>
           );
         })}

@@ -1,18 +1,33 @@
 /**
  * Playtomic beschikbaarheid via de onofficiële `/v1/availability` endpoint
- * (Route B uit API_REQUIREMENTS.md — geen authenticatie nodig volgens de
- * reverse-engineering bronnen daar, max. 25 uur per request).
+ * (Route B uit API_REQUIREMENTS.md).
  *
- * ⚠️ ONGEVERIFIEERD IN DEZE SANDBOX (23 juli 2026): api.playtomic.io geeft
- * hier op elk pad — ook de root `/` — een CloudFront 403 "Request blocked",
- * terwijl playtomic.io zelf (marketing-site, andere CloudFront-distributie)
- * gewoon bereikbaar is. Dat wijst op een IP-reputatie/WAF-blok op dit
- * sandbox-netwerk, geen fout in deze query. De response-vorm hieronder is
- * gebaseerd op de in API_REQUIREMENTS.md genoemde community-projecten
- * (go-playtomic-api, padel-cli), NIET zelf live bevestigd. Draai
- * `npm run poll:availability` een keer vanaf een normale (niet-datacenter)
- * verbinding en vergelijk de ruwe JSON met de types hieronder voordat je
- * hierop vertrouwt in productie.
+ * ⚠️ BIJGEWERKT 24 juli 2026 — NIET MEER ALLEEN EEN SANDBOX-PROBLEEM:
+ * eerder stond hier dat de CloudFront 403 "Request blocked" waarschijnlijk
+ * een IP-reputatieblok was, specifiek voor de bouw-sandbox. Dat is nu
+ * weerlegd: dezelfde 403 trad ook op via een normale Chrome-sessie op een
+ * gewone (niet-sandbox) verbinding, zowel bij directe navigatie naar de
+ * endpoint-URL als bij een `fetch()` vanuit de Playtomic-site zelf
+ * (`TypeError: Failed to fetch`, wat op een CORS/WAF-blok wijst, niet op een
+ * tijdelijke storing).
+ *
+ * Waarschijnlijke oorzaak: Playtomic's publieke site draait inmiddels op
+ * `playtomic.com` (een Next.js-rewrite, andere domeinnaam dan het oude
+ * `playtomic.io`) en haalt beschikbaarheid **server-side** op (React Server
+ * Components, te zien aan `_rsc=`-requests) — de browser roept
+ * `api.playtomic.io` dus zelf helemaal niet meer aan. Het oude,
+ * community-gedocumenteerde endpoint lijkt daarmeeofwel uitgefaseerd, ofwel
+ * inmiddels achter een strengere WAF te zitten die alle directe verkeer blokt.
+ *
+ * **Praktische conclusie:** dit endpoint is op dit moment NIET bruikbaar
+ * gebleken, vanaf geen enkele geteste verbinding. De beschikbaarheidsdata
+ * zelf staat wel gewoon zichtbaar in de HTML van `playtomic.com/clubs/...`
+ * (bevestigd via screenshot) — een Playwright-scraper zoals
+ * `scripts/scrape-meetandplay.ts` (laad de pagina, lees de gerenderde grid)
+ * is daarom het realistische alternatief, niet een kale fetch-client zoals
+ * hieronder. Bewaar deze module als referentie/fallback mocht Playtomic het
+ * endpoint ooit weer openzetten, maar bouw de Radar-koppeling voor
+ * WePadel/PADEL25 niet hierop totdat dat zo is.
  */
 
 export type PlaytomicSlot = {

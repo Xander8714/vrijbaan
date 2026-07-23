@@ -6,6 +6,27 @@
 
 ---
 
+## 0. Huidige prioriteit (24 juli 2026)
+
+**Bouw een Playwright-scraper voor Playtomic (WePadel + PADEL25), naar het
+voorbeeld van `scripts/scrape-meetandplay.ts`.**
+
+Reden: `src/lib/scrapers/playtomic.ts` (kale fetch-client op
+`api.playtomic.io/v1/availability`) is getest en **werkt niet meer** — niet
+alleen in de bouw-sandbox, ook vanaf een gewone Chrome-sessie op een normale
+verbinding (CloudFront 403 / CORS-blok, zie API_REQUIREMENTS.md §1).
+Playtomic rendert beschikbaarheid nu server-side op `playtomic.com`, dus de
+data staat wél gewoon in de pagina (bevestigd via screenshot van
+`playtomic.com/clubs/wepadel-haarlem`), maar is niet via een aparte
+JSON-aanroep te benaderen.
+
+Zonder deze scraper is Radar voor WePadel en PADEL25 niet meer dan een
+lege plek in `pollConfig.ts` — dit is dus de blokkerende stap vóór alle
+andere openstaande punten (Foys-parser, Overhout-inlogmuur, mobiele app).
+Zie §6 (bouwvolgorde) en §8 voor de technische details.
+
+---
+
 ## 1. Het probleem
 
 Padel groeit in Nederland harder dan het aanbod aan banen: 876.000 spelers in 2025, banen +25%, maar spelersaantal groeit sneller. Gevolg: wachtlijsten en volle clubs, vooral in dichtbevolkte regio's. Daarbovenop is het boekingslandschap versnipperd — spelers hebben 2-3 apps nodig (Playtomic voor commerciële clubs, KNLTB Meet & Play voor verenigingen) en beschikbaarheid is vaak alleen binnen een beperkt tijdvenster zichtbaar.
@@ -20,18 +41,21 @@ Twee losse problemen, één regionale app om mee te beginnen, met een landelijk 
 
 | Club | Plaats | Banen | Systeem | Status (2026) |
 |------|--------|-------|---------|----------------|
-| Racketclub Overhout | Haarlem | — | Playtomic (vermoedelijk) | Vol, wachtlijst dicht |
+| Racketclub Overhout | Haarlem | 5 | **Baanreserveren** (bevestigd) | Vol, wachtlijst dicht — boeksysteem vereist inloggen, geen publieke view |
 | TPV Pim Mulier | Haarlem | — | Meet & Play (vereniging) | Ledenstop senioren, wachtlijst heropend |
-| WePadel Haarlem | Haarlem | 8 | Playtomic (vermoedelijk) | Grootste outdoor club van NL |
-| Peakz Padel Haarlem | Haarlem | — | Playtomic (vermoedelijk) | — |
-| PADEL25 Haarlem | Haarlem | — | Playtomic (vermoedelijk) | — |
-| Schoten Tennis & Padel | Haarlem | — | Meet & Play (vereniging) | — |
+| WePadel Haarlem | Haarlem | 8 | Playtomic (bevestigd) | Grootste outdoor club van NL |
+| Peakz Padel Haarlem | Haarlem | 4 | **Foys** (bevestigd) | Vestiging "Haarlemmerstroom", publiek GET-endpoint |
+| PADEL25 Haarlem | Haarlem | 4 | Playtomic (bevestigd) | — |
+| Schoten Tennis & Padel | Haarlem | 4 | Meet & Play (vereniging) | — |
 | LTC Hofgeest | Velserbroek | 3 | Meet & Play (vereniging) | — |
 | LTC Groeneveen | Santpoort-Noord (Driehuis+5km) | 10 | Meet & Play (vereniging) | — |
 
 **Totaal: 8 locaties, ~47 banen.** De twee wachtlijst-clubs (Overhout, Pim Mulier) zijn je beste bron voor de eerste testgebruikers — die mensen zoeken nu al actief naar een plek.
 
-*Let op: bovenstaande systeem-toewijzing (Playtomic vs. Meet & Play) is een aanname op basis van commercieel vs. vereniging. Eerste technische stap is dit per club te verifiëren.*
+*Update 23 juli 2026: alle 8 boekingssystemen zijn nu bevestigd via live onderzoek
+(devtools/netwerk-inspectie) — zie API_REQUIREMENTS.md. Overhout is de uitzondering:
+wel bevestigd (Baanreserveren), maar achter een inlogmuur, dus nog niet op te nemen
+in de publieke polling-laag zoals de andere drie systemen.*
 
 ---
 
@@ -104,8 +128,19 @@ Twee losse problemen, één regionale app om mee te beginnen, met een landelijk 
   datumnavigatie). Pim Mulier/Schoten/Groeneveen nog niet individueel geverifieerd.
 - Is er toestemming nodig van clubs om hun beschikbaarheid te monitoren/hergebruiken?
 - Zijn spelers-speelsterktes en tegenstander-opstellingen via MijnKNLTB programmatisch op te vragen, of alleen handmatig in te voeren door de gebruiker?
+  → **Deels beantwoord (23 juli 2026)**: MijnKNLTB draait op `mijnknltb.toernooi.nl`,
+  een instantie van Tournament Software (Visma) — geen publieke API, gewoon
+  loginnaam/wachtwoord, nog geen OAuth ("binnenkort inloggen met je KNLTB ID"
+  staat er zelf als toekomstplan). Programmatisch ophalen kan dus alleen via
+  een ingelogde sessie (zelfde risicoprofiel als Overhout/Baanreserveren) —
+  zie §10 voor de uitwerking en de risico's daarvan.
 - Welk boekingssysteem gebruiken Peakz Padel Haarlem en Racketclub Overhout?
-  Niet gevonden op Playtomic — "Matchable" kwam naar voren voor Peakz, nog te bevestigen.
+  → **Beantwoord (23 juli 2026)**: Peakz draait op "Foys" (api.foys.io,
+  publiek GET-endpoint, locationId "Haarlemmerstroom" — parser nog te bouwen,
+  zie API_REQUIREMENTS.md §3). Overhout draait op "Baanreserveren"
+  (overhout.baanreserveren.nl), maar vereist inloggen — geen publieke
+  beschikbaarheid-view, dus (nog) niet op te nemen in de polling-laag
+  (API_REQUIREMENTS.md §4).
 
 ## 8. Status scraper + polling-laag (bijgewerkt 23 juli 2026)
 
@@ -121,14 +156,20 @@ Twee losse problemen, één regionale app om mee te beginnen, met een landelijk 
   onderdeel van de Next.js request-cyclus.
 - `src/app/radar/page.tsx` leest nu live uit `club_beschikbaarheid` voor de
   gekoppelde clubs; overige clubs tonen nog de handmatige statustekst.
-- **Playtomic-client (`src/lib/scrapers/playtomic.ts`) is NIET live
-  geverifieerd**: `api.playtomic.io` gaf in de sandbox waarin dit gebouwd is
-  op elk pad (ook root `/`) een CloudFront 403 "Request blocked", terwijl
-  `playtomic.io` zelf gewoon bereikbaar was — vermoedelijk een IP-reputatie-
-  blok op dat sandbox-netwerk, geen probleem met de query zelf. Draai
-  `npm run poll:availability` een keer vanaf een gewone (niet-datacenter)
-  verbinding en vergelijk de ruwe JSON met de types in dat bestand voordat je
-  hierop vertrouwt.
+- **Update 24 juli 2026 — Playtomic-client blijkt écht niet te werken, niet
+  alleen in de sandbox.** Eerder stond hier dat de CloudFront 403 een
+  sandbox-specifiek IP-blok was. Dat is nu getest via een gewone Chrome-sessie
+  op een normale verbinding en weerlegd: zelfde 403 bij directe navigatie, en
+  een `fetch()` vanuit `playtomic.com` zelf gaf `Failed to fetch` (CORS/WAF-
+  blok). Playtomic's site draait nu op `playtomic.com` en rendert
+  beschikbaarheid server-side (React Server Components) — de browser roept
+  `api.playtomic.io` niet meer aan bij normaal gebruik. Dat oude endpoint is
+  dus vermoedelijk uitgefaseerd. **Gevolg: WePadel en PADEL25 kunnen (nog)
+  niet via `fetchPlaytomicAvailability` gepolld worden** — de data staat wel
+  gewoon in de gerenderde pagina, dus het realistische alternatief is een
+  Playwright-scraper zoals bij Meet & Play, of alsnog de officiële Route A
+  (Bearer-token per club) aanvragen. Zie API_REQUIREMENTS.md §1 voor de
+  volledige onderbouwing.
 - Ook niet end-to-end getest: de Supabase-lees/schrijf-cyclus en de Telegram-
   notificatie zelf — die sandbox had geen `.env` met echte Supabase-
   credentials of een Telegram-bot-token. Wel bevestigd dat het script bij
@@ -214,3 +255,78 @@ zonder de app.
 8. EAS Build (iOS + Android) → TestFlight / interne Android-testtrack.
 9. Store-review indienen.
 10. Radar (v2) pas nadat de webkant een echte polling-laag heeft.
+
+## 10. MijnKNLTB-koppeling + vriendenlijst
+
+**Aanleiding:** bij het aanmaken van een account ook MijnKNLTB-gegevens
+opvragen, en daaruit voor-/achternaam en speelsterkte overnemen als
+beschikbaar — plus een "mijn vrienden"-lijst zodat je bij het samenstellen
+van een opstelling niet steeds handmatig spelers hoeft in te typen.
+
+### 10.1 Wat is bevestigd over MijnKNLTB (23 juli 2026, live onderzoek)
+- MijnKNLTB draait op `mijnknltb.toernooi.nl` — een instantie van
+  **Tournament Software (Visma)**, niet een eigen KNLTB-systeem.
+- **Geen publieke API.** Login is een gewoon loginnaam/wachtwoord-formulier.
+  De site meldt zelf: "Binnenkort maken we het mogelijk dat je kunt inloggen
+  met je KNLTB ID" — dus zelfs OAuth/SSO is er nu nog niet, laat staan een
+  ontwikkelaars-API.
+- De MijnKNLTB-landingspagina noemt zelf al "Bekijk je statistieken" en
+  "**Volg vrienden of je tegenstander**" als functies — het concept
+  vriendenlijst sluit dus aan bij wat spelers al kennen uit MijnKNLTB zelf.
+
+### 10.2 Aanpak MijnKNLTB-koppeling — met expliciete risico's
+Er is geen nette API-route zoals bij Playtomic/Foys. De enige technische
+optie is dezelfde als bij Meet & Play/Overhout: **inloggen namens de
+gebruiker en het profiel scrapen** (Playwright, server-side, éénmalig bij
+koppelen — geen doorlopende polling nodig, dit hoeft maar één keer per
+koppeling/rating-wijziging).
+
+Belangrijke afwegingen, dus niet zomaar te bouwen:
+- **Wachtwoorden van een derde partij (KNLTB) opslaan is gevoelig.** Doe dit
+  nooit als plaintext-veld in Supabase. Praktisch: gebruik het wachtwoord
+  alleen éénmalig om in te loggen, haal naam + speelsterkte op, en gooi het
+  wachtwoord daarna weg — bewaar het nooit voor herhaald gebruik. Wil je
+  gegevens later kunnen verversen, vraag dan opnieuw in te loggen in plaats
+  van het wachtwoord te bewaren.
+- **Gebruiksvoorwaarden-risico**: geautomatiseerd inloggen namens gebruikers
+  bij een derde partij kan tegen KNLTB/Tournament Software voorwaarden
+  ingaan — dit is een bewuste risicoafweging, niet een technisch detail.
+  Wees hier transparant over naar gebruikers (expliciete opt-in, uitleg
+  waarom en wat je ophaalt) en overweeg juridisch advies voordat dit naar
+  productie gaat, zeker als de gebruikersgroep groeit.
+- **Fragiliteit**: net als bij Meet & Play kan Tournament Software's
+  paginastructuur veranderen — bouw met dezelfde foutafhandelings-aanpak
+  (duidelijke fout i.p.v. stil verkeerd resultaat).
+
+**Aanbeveling:** bouw dit als **optionele** stap ná registratie, niet als
+verplicht onderdeel van het aanmaken van een account. Het simpele
+alternatief — gebruiker vult zelf naam + speelsterkte in (één getal 1-9) —
+blijft de standaard, lage-risico basisflow. De MijnKNLTB-koppeling is een
+comfort-upgrade erbovenop ("haal automatisch op" i.p.v. "vul zelf in"), geen
+vervanging.
+
+### 10.3 Datamodel
+- `profiles` uitbreiden met `voornaam`, `achternaam`, `speelsterkte`
+  (nullable — leeg tot handmatig ingevuld of via MijnKNLTB opgehaald) en
+  `speelsterkte_bron` (`handmatig` | `mijnknltb`, voor transparantie in de UI).
+- Nieuwe tabel `vrienden`: `user_id`, `vriend_user_id`, `status`
+  (`pending` | `geaccepteerd`), `aangemaakt_op` — met RLS zodat je alleen je
+  eigen vriendschapsrijen (als verzoeker of ontvanger) ziet.
+- Opstelling-pagina: naast handmatige spelersinvoer een "kies uit vrienden"-
+  optie die naam + speelsterkte automatisch invult vanuit `profiles`.
+
+### 10.4 Stappenplan
+1. `profiles`-schema uitbreiden (voornaam/achternaam/speelsterkte/bron) +
+   `vrienden`-tabel met RLS, in `supabase/schema.sql`.
+2. Vriendenlijst-UI: vriend toevoegen (op e-mail of naam zoeken), verzoek
+   accepteren/weigeren, vrienden tonen op een account-subpagina.
+3. Opstelling-pagina uitbreiden: spelers kiezen uit vriendenlijst i.p.v.
+   alleen handmatig typen (handmatig blijft altijd mogelijk).
+4. MijnKNLTB-koppeling als losse, optionele actie ("Koppel MijnKNLTB")
+   met duidelijke uitleg + expliciete toestemming, vóór er ook maar iets
+   gebouwd wordt aan de eigenlijke login/scrape-stap.
+5. Playwright-login-en-scrape-module (`src/lib/scrapers/mijnknltb.ts`),
+   zelfde eerlijkheids-aanpak als de andere scrapers: bouwen op basis van
+   live devtools-onderzoek van het profielscherm, niet op aannames.
+6. Wachtwoord-handling expliciet testen/reviewen voordat dit live gaat —
+   dit is de gevoeligste stap in het hele project tot nu toe.

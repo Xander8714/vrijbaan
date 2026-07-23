@@ -22,6 +22,7 @@
 
 import { scrapeMeetAndPlay } from "./scrape-meetandplay";
 import { fetchPlaytomicAvailability } from "../src/lib/scrapers/playtomic";
+import { fetchFoysAvailability } from "../src/lib/scrapers/foys";
 import { CLUBS } from "../src/lib/clubs";
 import { POLL_CONFIG } from "../src/lib/pollConfig";
 import { supabaseAdmin } from "../src/lib/supabase/admin";
@@ -52,10 +53,16 @@ async function stuurTelegramBericht(tekst: string): Promise<void> {
 
 async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
   const bron = POLL_CONFIG[clubId];
-  if (bron.type === "meetandplay") {
-    return (await scrapeMeetAndPlay(bron.meetAndPlayClubId, datum)).slots;
+  switch (bron.type) {
+    case "meetandplay":
+      return (await scrapeMeetAndPlay(bron.meetAndPlayClubId, datum)).slots;
+    case "playtomic":
+      return (await fetchPlaytomicAvailability(bron.tenantId, datum)).map((s) => ({ startTime: s.startTime }));
+    case "foys":
+      return (await fetchFoysAvailability(bron.locationId, bron.reservationTypeId, datum)).map((s) => ({
+        startTime: s.startTime,
+      }));
   }
-  return (await fetchPlaytomicAvailability(bron.tenantId, datum)).map((s) => ({ startTime: s.startTime }));
 }
 
 async function pollEenClubEnDag(clubId: string, datum: string): Promise<void> {
