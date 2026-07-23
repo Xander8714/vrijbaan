@@ -25,6 +25,13 @@ lege plek in `pollConfig.ts` — dit is dus de blokkerende stap vóór alle
 andere openstaande punten (Foys-parser, Overhout-inlogmuur, mobiele app).
 Zie §6 (bouwvolgorde) en §8 voor de technische details.
 
+**Bekende bug — nog te fixen:** de handmatige "Speelsterkte opzoeken →"-link
+op de Opstelling-pagina (`src/app/opstelling/page.tsx`) wijst nog naar
+`https://mijn.knltb.nl`, een domein dat niet resolvet (DNS-fout, bevestigd
+23 juli 2026). Moet vervangen worden door `https://www.toernooi.nl/find/player`
+(de publieke spelerszoeker die de "Zoek op KNLTB"-knop ook al gebruikt) —
+nuttiger als fallback dan de login-vereisende `mijnknltb.toernooi.nl`.
+
 ---
 
 ## 1. Het probleem
