@@ -38,9 +38,26 @@ niets aan te maken bij Playtomic zelf om te beginnen.
 - **Aanbevolen aanpak: headless browser (Playwright)**, geen fetch-client.
   Laad de pagina echt, klik op "Padel", wacht op de Livewire-update, lees de
   gerenderde HTML. Zie `src/lib/scrapers/meetandplay.ts` voor het
-  interface-contract (nog niet geïmplementeerd — vereist Playwright-script).
+  interface-contract en `scripts/scrape-meetandplay.ts` voor de werkende
+  implementatie.
 - Interne club-id wijkt af van de publieke URL-id: Hofgeest is `29942` in de
   URL, maar `clubid-22` in hun documenten-opslag-systeem.
+
+**Geverifieerd end-to-end (23 juli 2026, tegen club 29942):**
+- Sportfilter: `select#sportId` (`wire:model.live="tenantSportId"`, `1`=Tennis, `2`=Padel).
+- Tijdslots: `input[name="time"]` — `.value` is de starttijd (bv. `"19:00"`).
+- **Datumkiezer heeft geen native `<input type="date">`** — het is een
+  readonly Pikaday-widget (`wire:ignore`, dus buiten Livewire's DOM-beheer om).
+  Pikaday's `onSelect` roept zelf `window.Livewire.find(<wireId>).set('date',
+  'DD-MM-YYYY')` aan. Een scraper kan die exacte call in de pagina uitvoeren
+  via `page.evaluate()` i.p.v. de kalender-popup te bedienen — stabieler,
+  geen maand-navigatie/positionering nodig. `wireId` is te vinden via
+  `document.querySelector('#date').closest('[wire\\:id]')`. `minDate` staat
+  hardcoded op vandaag; datums in het verleden geeft de site niet vrij.
+- **Val om te onthouden bij de polling-laag:** een lege `slots`-array voor
+  "vandaag" laat op de avond is een geldig resultaat (na sluitings-/laatste
+  boekbare tijd), geen kapotte selector. Verifieer twijfel door dezelfde club
+  voor morgen te scrapen — als die wél sloten teruggeeft, werkt de scraper.
 
 ## 3. Supabase — zie README.md
 ## 4. Stripe — zie README.md
@@ -49,6 +66,7 @@ niets aan te maken bij Playtomic zelf om te beginnen.
 1. Test Route B (Playtomic) meteen tegen WePadel/PADEL25 met de tenant_id's
    hierboven — geen account nodig.
 2. Zoek uit welk boekingssysteem Peakz en Overhout gebruiken.
-3. Bouw een Playwright-script voor Meet & Play (Hofgeest e.a.) — geen lichte
-   fetch-client, dat werkt hier niet.
+3. ~~Bouw een Playwright-script voor Meet & Play~~ — gedaan, incl.
+   datumnavigatie (`scripts/scrape-meetandplay.ts`). Nog open: koppelen aan
+   polling-laag + database (zie PROJECTPLAN.md §6).
 4. Vraag officiële Playtomic-toegang aan zodra je een werkend prototype hebt.

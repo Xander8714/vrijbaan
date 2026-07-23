@@ -97,6 +97,22 @@ Twee losse problemen, één regionale app om mee te beginnen, met een landelijk 
 ## 7. Openstaande vragen om uit te zoeken
 
 - Heeft Playtomic een (semi-)publieke API of moet dit ook gescraped worden?
+  → **Beantwoord**: onofficiële `/v1/availability` endpoint werkt zonder auth
+  (zie API_REQUIREMENTS.md §1). tenant_id's voor WePadel en PADEL25 bevestigd.
 - Zijn de verenigingsclubs (Pim Mulier, Schoten, Hofgeest, Groeneveen) allemaal via Meet & Play te benaderen, of hebben sommige een eigen boekingssysteem?
+  → Hofgeest bevestigd via Meet & Play, scraper end-to-end werkend (incl.
+  datumnavigatie). Pim Mulier/Schoten/Groeneveen nog niet individueel geverifieerd.
 - Is er toestemming nodig van clubs om hun beschikbaarheid te monitoren/hergebruiken?
 - Zijn spelers-speelsterktes en tegenstander-opstellingen via MijnKNLTB programmatisch op te vragen, of alleen handmatig in te voeren door de gebruiker?
+- Welk boekingssysteem gebruiken Peakz Padel Haarlem en Racketclub Overhout?
+  Niet gevonden op Playtomic — "Matchable" kwam naar voren voor Peakz, nog te bevestigen.
+
+## 8. Status scraper Meet & Play (bijgewerkt 23 juli 2026)
+
+- `scripts/scrape-meetandplay.ts`: end-to-end getest tegen Hofgeest (29942).
+  Sport- en tijdslot-selectors kloppen nog. Datumnavigatie toegevoegd (accepteert
+  optioneel `YYYY-MM-DD`-argument) — zie API_REQUIREMENTS.md §2 voor de
+  technische details (Pikaday + Livewire `.set()`-aanroep).
+- Nog niet gedaan: polling-laag (cron + diff + notificatie) en koppeling aan
+  Supabase, zodat de Radar-pagina uit de database leest i.p.v. mock-data in
+  `src/lib/clubs.ts`. Dit is de volgende stap in de bouwvolgorde hierboven.
