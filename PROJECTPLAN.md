@@ -70,6 +70,12 @@ in de publieke polling-laag zoals de andere drie systemen.*
 - Polling-service die periodiek (bv. elke 5-10 min) beschikbaarheid ophaalt en vergelijkt met vorige stand → bij nieuw vrij slot: trigger notificatie.
 - Notificatiekanaal: begin met een simpele Telegram-bot of push (makkelijker te bouwen dan WhatsApp Business API, geen goedkeuringsproces nodig). WhatsApp kan later als upgrade.
 - Gebruikersvoorkeuren: club(s), dagen, tijdvak, eventueel maximale prijs.
+- **UI-eis (24 juli 2026):** bij een gevolgde club niet alleen het aantal vrije
+  sloten tonen (huidige staat, `live.slots.length`) maar de **daadwerkelijke
+  tijden zelf** — dus de vrije starttijden uitklappen/tonen zodra je een club
+  volgt, niet pas na een notificatie. Radar-pagina (`src/app/radar/page.tsx`)
+  heeft de sloten-data al in `beschikbaarheid`; dit is een weergave-uitbreiding,
+  geen nieuwe databron.
 
 **Risico's:**
 - Scrapen van Meet & Play kan tegen gebruiksvoorwaarden ingaan of instabiel zijn (site-structuur kan veranderen) — bouw dit met foutafhandeling en monitoring.
