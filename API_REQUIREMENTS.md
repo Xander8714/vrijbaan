@@ -140,6 +140,18 @@ Playtomic, niet "Matchable" zoals eerder vermoed).
   exacte request-headers uit de browser-devtools over voordat je de parser
   afmaakt.
 
+## 3b. Overige boekingssystemen (researchronde, 29 juli 2026 — nog niet live geverifieerd)
+
+Via WebSearch (padelgids.nl-vergelijking), NIET via eigen devtools-onderzoek
+zoals bij Foys/Overhout — dus als startpunt, niet als bevestiging:
+naast Playtomic/Foys/Meet & Play gebruiken NL-padelclubs ook **Bookaball**
+(nieuw, groeiend, geen technische details gevonden), **i-Reserve**, **Booqr**,
+**Aqqo**, **BookLux** en **OpenResa**. Voor elk hiervan geldt: pas nadat een
+live devtools-check (zoals bij Foys — headers onderscheppen, endpoint
+proberen zonder auth) is gedaan, kan gezegd worden of het een publiek
+endpoint, een Playwright-scraper, of een inlogmuur (zoals Overhout) vergt.
+Niet aannemen op basis van marketingteksten.
+
 ## 4. Racketclub Overhout — "Baanreserveren" platform (bevestigd 23 juli 2026)
 
 - Boekingslink op rcoverhout.nl wijst naar `overhout.baanreserveren.nl/reservations`.
@@ -170,9 +182,28 @@ Playwright (headless, geen ingelogde sessie):
 **Conclusie voor Hofgeest**: iedereen kan boeken, mits een gratis KNLTB ID.
 `src/lib/clubs.ts` zet `boekbaarZonderLidmaatschap: true` voor hofgeest.
 
-**Niet aangenomen voor andere Meet & Play-clubs** (Schoten, Groeneveen, Pim
-Mulier): clubs kunnen dit per vestiging anders instellen (bv. baanhuur alleen
-voor leden opzetten). Elk apart verifiëren vóór landelijke import.
+**Update (later op 29 juli 2026) — Schoten, Groeneveen én Pim Mulier ook
+getest, alle drie hetzelfde resultaat.** Zelfs Pim Mulier, met een expliciete
+"ledenstop senioren", liet een niet-lid gewoon een slot in het winkelmandje
+leggen en naar de KNLTB ID-login gaan — geen enkele lidmaatschapscheck. Dat
+is een sterke aanwijzing dat dit GEEN per-club-instelling is maar hoe Meet &
+Play als KNLTB-breed platform werkt: de "ledenstop" gaat over échte
+clublidmaatschap (stemrecht, contributie, wachtlijst), niet over losse
+baanhuur via Meet & Play. Op basis van deze 4/4-steekproef markeert de
+landelijke import (`scripts/discover-meetandplay-clubs.ts`) alle 388
+geïmporteerde clubs als `boekbaarZonderLidmaatschap: true` — een aanname,
+geen 401x individueel bevestigd feit. Herzie dit als ooit een tegenvoorbeeld
+opduikt.
+
+**Landelijke directory gevonden**: `meetandplay.nl/club` met sportfilter
+Padel (`select#sportId`, Livewire, waarde "2") toont alle 401 Nederlandse
+padel-aangesloten Meet & Play-clubs op één pagina — geen paginering of
+infinite scroll. Elke kaart (`.c-club-card`) heeft naam + adres; het bruikbare
+club-id staat in de "Boeken"-link (`/club/<id>`), NIET in het `data-id`-
+attribuut van de kaart (die twee lopen uit elkaar, bevestigd bij VLTV Tennis &
+Padel: data-id="4396" maar boekingslink "/club/83402"). 388 van de 401 clubs
+zijn geocodeerd via PDOK en toegevoegd (13 overgeslagen: 4 al handmatig
+bekend, 8 adressen niet betrouwbaar te geocoderen).
 
 ## 5. Supabase — zie README.md
 ## 6. Stripe — zie README.md
@@ -208,9 +239,15 @@ voor leden opzetten). Elk apart verifiëren vóór landelijke import.
    crawl (`scripts/discover-playtomic-clubs.ts`) leverde daarnaast 82
    Playtomic-clubs op (crawl nog niet compleet, zie PROJECTPLAN.md taak
    "Playtomic-crawl afmaken").
-9. Meet & Play — prijs per tijdslot nog niet uitgelezen (alleen starttijden).
-   Foys en Playtomic tonen al prijs; zie PROJECTPLAN.md taak "Meet & Play
-   prijs-extractie bouwen".
+9. Meet & Play — prijs per tijdslot BEWUST NIET gebouwd (29 juli 2026,
+   onderzocht). De prijs staat niet vooraf in de HTML voor elk tijdstip —
+   alleen het initieel geselecteerde tijdstip toont een prijs-paneel
+   (`.timeslot-price`). Bevestigd met echte data dat de prijs per tijdstip
+   varieert (Hofgeest 29942: €20,00 om 11:30/14:30, €25,00 om 22:00 — dynamische
+   piekprijzen). Elk tijdstip apart uitlezen kost een eigen Livewire-klik
+   (~1-1,5s) — bij 10-20 tijden × 392 clubs zou dat de scrapetijd per club
+   verdubbelen/verdriedubbelen, wat gezien de Playtomic-403-bevinding (§2c)
+   niet verstandig is zonder eerst de pollingkosten breder op te lossen.
 10. Meet & Play landelijk: alleen Hofgeest (29942) bekend. **Belangrijke
     correctie (zie §2b)**: de aanname "alleen leden kunnen boeken" bleek fout
     bij Hofgeest — een gratis KNLTB ID volstaat. Niet aannemen dat dit voor

@@ -5,7 +5,23 @@
  * via Windows Task Scheduler. Dit script zelf doet één ronde en stopt —
  * de herhaling is de verantwoordelijkheid van de scheduler.
  *
- * Per club in POLL_CONFIG (src/lib/pollConfig.ts):
+ * ⚠️ SELECTIEF SINDS 29 juli 2026 — niet meer "alle clubs in POLL_CONFIG".
+ * Met 111+ clubs (Playtomic/Meet & Play kosten elk een eigen Playwright-run
+ * van ~15-20s) duurde een volledige ronde ruim een uur — onbruikbaar voor een
+ * cyclus van 5-10 min (zie PROJECTPLAN.md §0/§8). Deze job pollt nu:
+ * 1. ALTIJD alle clubs die minstens één gebruiker volgt (tabel
+ *    `gevolgde_clubs`) — dat is waar een notificatie ook daadwerkelijk voor
+ *    iemand betekenis heeft.
+ * 2. DAARNAAST een kleine, tijdgebaseerd roterende batch van niet-gevolgde
+ *    clubs (zie `kiesRotatieBatch`) — zodat (a) een scraper die kapot gaat
+ *    wordt opgemerkt vóórdat iemand de club volgt, en (b) een net-gevolgde
+ *    club niet als eerste meting hoeft te wachten op een run die toevallig
+ *    NA het volgen komt.
+ * Geen aparte cursor-tabel nodig: het rotatieblok wordt afgeleid uit de
+ * huidige tijd (`Date.now()`), dus elke run — ongeacht welk proces hem start
+ * — schuift automatisch door naar het volgende blok.
+ *
+ * Per te pollen club:
  * 1. Haal actuele sloten op. Zowel Meet & Play als Playtomic gaan via
  *    Playwright: de eerste omdat de site op Laravel Livewire draait, de tweede
  *    omdat de oude JSON-endpoint dood is en de data nu server-side gerenderd
@@ -18,9 +34,27 @@
  * Vereist: SUPABASE_SERVICE_ROLE_KEY + NEXT_PUBLIC_SUPABASE_URL (schrijven
  * gebeurt met de service-role key, buiten RLS om) en optioneel
  * TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (zonder deze wordt alleen gelogd).
+ * ⚠️ Telegram is NIET end-to-end getest in deze sessie (bewuste keuze —
+ * eerst de filtering werkend krijgen, Telegram-verificatie volgt vóór
+ * uitrol). Zonder de env-vars faalt niets: er wordt dan alleen gelogd.
  *
- * Gebruik: npx tsx scripts/poll-availability.ts
+ * Gebruik:
+ *   npx tsx scripts/poll-availability.ts              (gevolgd + rotatiebatch)
+ *   npx tsx scripts/poll-availability.ts --alles       (negeer selectie, alles pollen — traag, alleen voor test)
  */
+
+// Dit script draait los van Next.js (via `npx tsx`), dus .env.local wordt NIET
+// automatisch geladen zoals Next dat zelf doet — vastgesteld 29 juli 2026 toen
+// dit script "supabaseUrl is required" gaf terwijl .env.local wél de juiste
+// waarde had. process.loadEnvFile is een Node-ingebouwde API (stabiel sinds
+// Node 20.12/21.7, dit project draait op Node 24) — geen extra dependency
+// (dotenv) nodig. Ontbreekt het bestand (bv. in productie, waar het platform
+// de env-vars al zelf zet), dan negeren we de fout gewoon.
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  // Geen .env.local aanwezig — verwacht in productie, geen probleem.
+}
 
 import { scrapeMeetAndPlay } from "./scrape-meetandplay";
 import { scrapePlaytomic, uniekeStarttijden } from "./scrape-playtomic";
@@ -32,8 +66,43 @@ import { hashSlots, nieuweSlotenSinds, type Slot } from "../src/lib/availability
 
 const DAGEN_VOORUIT = 3; // vandaag + 2 dagen — genoeg voor een zinvolle radar zonder overbodig te pollen
 
+// Hoeveel niet-gevolgde clubs per ronde extra meegenomen worden, naast alle
+// gevolgde clubs. Bij ~15-20s per Playtomic/Meet & Play-club houdt dit een
+// ronde binnen een paar minuten, ook als er nog niemand iets volgt.
+const ROTATIE_GROOTTE = 8;
+// Hoe lang één rotatieblok "actief" is vóór de volgende batch aan de beurt
+// is. Moet ruwweg gelijk zijn aan de cron-cyclus zodat elke ronde een nieuw
+// blok pakt in plaats van tweemaal hetzelfde.
+const ROTATIE_BLOK_MINUTEN = 5;
+
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/** Alle club_id's die minstens één gebruiker volgt (ongeacht of ze pollbaar zijn — dat filtert de caller). */
+async function haalGevolgdeClubIds(): Promise<Set<string>> {
+  const supabase = supabaseAdmin();
+  const { data, error } = await supabase.from("gevolgde_clubs").select("club_id");
+  if (error) {
+    throw new Error(`Kon gevolgde_clubs niet lezen: ${error.message}`);
+  }
+  return new Set((data ?? []).map((r) => r.club_id as string));
+}
+
+/**
+ * Kiest een tijdgebaseerd roterend blok uit de niet-gevolgde, wél pollbare
+ * clubs. Geen persistente cursor: het blok volgt puur uit de huidige tijd,
+ * dus opeenvolgende runs (elke ~5-10 min, extern gepland) schuiven vanzelf
+ * door tot elke club aan de beurt is geweest.
+ */
+export function kiesRotatieBatch(nietGevolgdPollbaar: string[], nu: Date = new Date()): string[] {
+  if (nietGevolgdPollbaar.length === 0) return [];
+  // Stabiele volgorde nodig, anders verschuift het blok willekeurig tussen runs.
+  const gesorteerd = [...nietGevolgdPollbaar].sort();
+  const totaalBlokken = Math.ceil(gesorteerd.length / ROTATIE_GROOTTE);
+  const blokIndex = Math.floor(nu.getTime() / (ROTATIE_BLOK_MINUTEN * 60 * 1000)) % totaalBlokken;
+  const start = blokIndex * ROTATIE_GROOTTE;
+  return gesorteerd.slice(start, start + ROTATIE_GROOTTE);
 }
 
 async function stuurTelegramBericht(tekst: string): Promise<void> {
@@ -131,14 +200,41 @@ async function main(): Promise<void> {
     return toISODate(d);
   });
 
-  for (const clubId of Object.keys(POLL_CONFIG)) {
+  const alleGeforceerd = process.argv.includes("--alles");
+  const pollbareIds = Object.keys(POLL_CONFIG);
+
+  let teVerwerken: string[];
+  if (alleGeforceerd) {
+    teVerwerken = pollbareIds;
+    console.log(`[selectie] --alles opgegeven: alle ${teVerwerken.length} pollbare clubs (traag, alleen voor test).`);
+  } else {
+    const gevolgd = await haalGevolgdeClubIds();
+    const gevolgdPollbaar = pollbareIds.filter((id) => gevolgd.has(id));
+    const nietGevolgdPollbaar = pollbareIds.filter((id) => !gevolgd.has(id));
+    const rotatie = kiesRotatieBatch(nietGevolgdPollbaar, vandaag);
+    teVerwerken = [...new Set([...gevolgdPollbaar, ...rotatie])];
+    console.log(
+      `[selectie] ${gevolgdPollbaar.length} gevolgde clubs + ${rotatie.length} uit de rotatiebatch ` +
+        `(van ${nietGevolgdPollbaar.length} niet-gevolgde pollbare clubs) = ${teVerwerken.length} totaal, ` +
+        `× ${dagen.length} dagen.`
+    );
+  }
+
+  for (const clubId of teVerwerken) {
     for (const datum of dagen) {
       await pollEenClubEnDag(clubId, datum);
     }
   }
 }
 
-main().catch((err) => {
-  console.error("Polling-run mislukt:", err);
-  process.exit(1);
-});
+// Bewust met een module-guard (zelfde patroon als scrape-meetandplay.ts en
+// scrape-playtomic.ts): zonder deze guard start main() — met echte Supabase-
+// schrijven en echte scrapers — al bij het simpelweg IMPORTEREN van dit
+// bestand, wat een unit test die alleen kiesRotatieBatch nodig heeft onbedoeld
+// een volledige polling-run zou laten uitvoeren.
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("Polling-run mislukt:", err);
+    process.exit(1);
+  });
+}

@@ -79,6 +79,60 @@ hiermee **één product: de beschikbaarheid-radar.**
 Alle drie de aanbieders (Playtomic, Foys, Meet & Play) leveren dus in één run
 echte data. Dit is de eerste keer dat dat aantoonbaar is.
 
+### P1 landelijke uitbreiding afgerond (29 juli 2026, tweede sessie-ronde)
+Na de polling-fix (zie hieronder) is de rest van de P1-lijst afgewerkt:
+- **Meet & Play landelijk**: een complete directory gevonden
+  (`meetandplay.nl/club`, sportfilter Padel, 401 clubs op één pagina, geen
+  crawl nodig) → 388 clubs geïmporteerd via `scripts/discover-meetandplay-clubs.ts`.
+- **Ledencheck Schoten/Groeneveen/Pim Mulier**: alle drie bevestigd boekbaar
+  zonder lidmaatschap (zelfde KNLTB ID-mechanisme als Hofgeest) — zelfs Pim
+  Mulier ondanks een "ledenstop senioren". Sterke aanwijzing dat dit een
+  KNLTB-breed platformkenmerk is, geen per-club-instelling.
+- **Totaal nu 501 clubs** (was 112): 392 Meet & Play + 83 Playtomic + 26 Foys.
+- **Meet & Play-prijs**: onderzocht, bewust NIET gebouwd — prijs blijkt
+  dynamisch per tijdstip (€20 vs €25 op dezelfde dag/club), dus alleen te
+  achterhalen door elk tijdstip apart aan te klikken. Te duur om standaard te
+  doen bovenop de al kostbare Playwright-scrape.
+- **Overige boekingssystemen**: eerste ronde research (Bookaball, i-Reserve,
+  Booqr, Aqqo, BookLux, OpenResa) — nog niet live geverifieerd, zie
+  API_REQUIREMENTS.md §3b.
+- **Playtomic-crawl continuering bewust overgeslagen** deze ronde — gezien de
+  403-bevinding (hieronder) leek het onverstandig om Playtomic meteen opnieuw
+  zwaar te belasten.
+
+### Polling-job selectief gemaakt + eerste echte end-to-end run (29 juli 2026)
+`scripts/poll-availability.ts` pollt niet meer "alles in POLL_CONFIG", maar:
+1. altijd alle clubs die minstens één gebruiker volgt (`gevolgde_clubs`);
+2. daarnaast een kleine, tijdgebaseerd roterende batch niet-gevolgde clubs
+   (`kiesRotatieBatch`, 8 clubs per blok van 5 min, geen cursor-tabel nodig —
+   het blok volgt puur uit `Date.now()`). 6 nieuwe tests in
+   `src/lib/__tests__/pollRotatie.test.ts`.
+
+**Eerste echte run tegen de live database (nooit eerder gedaan):** werkte
+end-to-end — las `gevolgde_clubs`, koos 1 gevolgde club + 8 rotatieclubs × 3
+dagen, scrapete ze, schreef naar `club_beschikbaarheid`. Ook `main()` had
+géén module-guard (`require.main === module`) — daardoor startte de hele job
+al bij het simpelweg IMPORTEREN van het bestand, wat de nieuwe unit test
+(die alleen `kiesRotatieBatch` nodig had) per ongeluk een volledige
+polling-run liet triggeren. Gefixt. Ook: `tsx` laadt `.env.local` niet
+automatisch zoals Next.js dat doet — opgelost met Node's ingebouwde
+`process.loadEnvFile()` (geen nieuwe dependency nodig, Node 24).
+
+**⚠️ Bevinding die nog uitgezocht moet worden — Playtomic-403 bij snel
+herhaald draaien.** Twee clubs die in de eerste run gewoon slaagden, gaven in
+een tweede run (enkele minuten later) een 403 terug. Omdat exact dezelfde
+slug net daarvoor nog werkte, is een dode/foutieve slug onwaarschijnlijk —
+dit wijst eerder op een WAF/rate-limit die reageert op herhaald geautomatiseerd
+verkeer vanaf hetzelfde IP. **Belangrijk voor de 5-10 min-cyclus**: als
+Playtomic bij elke ronde alle rotatieclubs opnieuw bezoekt vanaf hetzelfde
+IP, loop je risico op structurele blokkades. Nog te doen vóór dit op een
+cron gaat: request-frequentie per club beperken (bv. niet vaker dan 1x per
+X minuten per club, ongeacht rotatieblok), en/of retries met backoff i.p.v.
+een enkele 403 meteen als "mislukt" loggen. Telegram is in deze sessie
+bewust NIET getest (dat komt vóór uitrol, zie hierboven) — deze run had dus
+geen TELEGRAM_BOT_TOKEN gezet, wat correct als "alleen loggen" werd
+afgehandeld.
+
 ### Beschikbaarheid op aanvraag i.p.v. alles pollen (29 juli 2026)
 De Radar vraagt beschikbaarheid nu live op via
 `src/app/api/beschikbaarheid/route.ts`, en alléén voor de clubs die na het

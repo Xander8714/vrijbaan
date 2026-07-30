@@ -1,5 +1,6 @@
 import { FOYS_CLUBS } from "./clubs.foys";
 import { PLAYTOMIC_CLUBS } from "./clubs.playtomic";
+import { MEETANDPLAY_CLUBS } from "./clubs.meetandplay";
 
 /**
  * Koppelt een club-id (uit clubs.ts) aan de manier waarop we 'm kunnen pollen.
@@ -42,9 +43,24 @@ const PLAYTOMIC_BRONNEN: Record<string, PollBron> = Object.fromEntries(
   ])
 );
 
+/**
+ * De landelijke Meet & Play-clubs (scripts/discover-meetandplay-clubs.ts,
+ * 388 stuks) + de 4 handmatig onderzochte (Hofgeest/Schoten/Groeneveen/Pim
+ * Mulier). Zelfde kostenprofiel als Playtomic: elke club kost een eigen
+ * Playwright-run (~15-20s), vandaar dat poll-availability.ts sinds 29 juli
+ * 2026 selectief is (gevolgd + rotatiebatch, niet alles).
+ */
+const MEETANDPLAY_BRONNEN: Record<string, PollBron> = Object.fromEntries(
+  MEETANDPLAY_CLUBS.map((club) => [club.id, { type: "meetandplay", meetAndPlayClubId: club.meetAndPlayClubId } as PollBron])
+);
+
 export const POLL_CONFIG: Record<string, PollBron> = {
   ...PLAYTOMIC_BRONNEN,
+  ...MEETANDPLAY_BRONNEN,
   hofgeest: { type: "meetandplay", meetAndPlayClubId: "29942" },
+  schoten: { type: "meetandplay", meetAndPlayClubId: "88181" },
+  groeneveen: { type: "meetandplay", meetAndPlayClubId: "29850" },
+  "pim-mulier": { type: "meetandplay", meetAndPlayClubId: "29462" },
   // Beide Playtomic-clubs zijn op 29 juli 2026 end-to-end geverifieerd met
   // scripts/scrape-playtomic.ts: WePadel gaf 419 sloten / 27 starttijden en
   // PADEL25 19 sloten / 7 starttijden voor 30 juli 2026.

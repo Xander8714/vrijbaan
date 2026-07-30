@@ -13,6 +13,7 @@
     "poll:availability": "tsx scripts/poll-availability.ts",
     "import:foys": "tsx scripts/import-foys-clubs.ts",
     "discover:playtomic": "tsx scripts/discover-playtomic-clubs.ts",
+    "discover:meetandplay": "tsx scripts/discover-meetandplay-clubs.ts",
     "check": "tsx scripts/check-beschikbaarheid.ts"
   },
   "dependencies": {
