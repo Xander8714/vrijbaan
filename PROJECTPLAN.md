@@ -79,6 +79,49 @@ hiermee **één product: de beschikbaarheid-radar.**
 Alle drie de aanbieders (Playtomic, Foys, Meet & Play) leveren dus in één run
 echte data. Dit is de eerste keer dat dat aantoonbaar is.
 
+### Achtergronden: van vlak wit naar herkenbaar padelthema (29 juli 2026)
+Feedback van Xander tijdens het testen: de app oogde "veel te wit" buiten de
+donkere hero op de homepage. Eerste poging (een abstract CSS-lijnenraster)
+bleek nog steeds te subtiel; op expliciet verzoek om iets "zoals een
+gerelateerde padel foto" is dit vervangen door een eigen, zelfgetekende SVG-
+illustratie van een padelbaan van bovenaf (`public/padelbaan-achtergrond.svg`
+— echte baanverhoudingen: net, servicelijnen op 3m, middenlijnen per
+servicevak). **Bewust geen stockfoto**: dat zou een licentie/toestemming
+vergen (zie de regels rond bestanden downloaden); dit is 100% eigen werk,
+dus geen enkel risico daarop, en als SVG altijd scherp op elk scherm.
+
+Toepassing:
+- `.baan-achtergrond-licht` op `<body>` (layout.tsx): de illustratie herhaald
+  op een lichte overlay — elke pagina erft dit, dus geen losse aanpassing
+  per pagina nodig.
+- `.baan-hero` op de Radar-paginakop (expliciet genoemd als "te wit"): één
+  grote, niet-herhaalde versie met een donkere overlay, zelfde visuele taal
+  als de homepage-hero.
+- `.bal-stippen` als klein accent op de Gratis-prijskaart.
+
+Live geverifieerd op Radar, Help, Prijzen en de homepage — geen witte,
+textuurloze vlaktes meer.
+
+### Playtomic-403 opgelost + Radar-filterbug gefixt (29 juli 2026, vierde ronde)
+**Playtomic-403 (taak "Playtomic-403 uitzoeken")**: de eerder geblokkeerde
+club (`padel-club-vianen`) werkte bij een hertest gewoon weer — **de block
+was tijdelijk, geen permanente IP-ban.** Als evenredige, nette reactie (geen
+user-agent-rotatie of andere omzeiling): een willekeurige pauze van 2-4s
+tussen Playtomic-aanvragen in `poll-availability.ts` (alleen voor Playtomic —
+Foys/Meet & Play hebben geen enkele aanwijzing van een probleem), en in
+`discover-playtomic-clubs.ts` een pauze van 1-2,5s tussen paginabezoeken plus
+een expliciete stop-bij-403 (i.p.v. doorcrawlen en tientallen clubs onterecht
+als dood wegschrijven).
+
+**Radar-filterbug** (gemeld door Xander tijdens het testen): bij een
+voorkeurstijd toonde de standaardweergave (eerste 5 tijden) altijd de
+chronologisch eerste tijden van de hele dag, ook als geen daarvan bij het
+filter paste — de matchende tijden zaten dan verstopt achter "Toon nog N
+tijden". Gefixt: bij een ingestelde voorkeurstijd staan matchende tijden nu
+vooraan, aangevuld met de rest tot 5. Live geverifieerd: WePadel (voorkeur
+20:00 ±1u) toont nu 21:00 (enige match) eerst, PADEL25 toont 19:00/20:00/20:30
+(3 matches) eerst.
+
 ### Overige boekingssystemen live onderzocht — geen enkele bouwbaar (29 juli 2026, derde ronde)
 Op verzoek "volledig uitgewerkt net als Playtomic en Meet & Play": alle 7
 platforms uit de eerdere researchronde (§3b) live getest tegen echte NL-

@@ -346,11 +346,13 @@ export default function RadarPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-3xl font-bold text-slate-900">Beschikbaarheid Radar</h1>
-      <p className="mt-2 text-slate-600">
-        Kies waar je woont, stel je straal in en kijk tot 48 uur vooruit. Volg een club en krijg een melding
-        zodra er een baan vrijkomt.
-      </p>
+      <div className="baan-hero -mx-6 rounded-b-2xl px-6 py-10 sm:px-8">
+        <h1 className="text-3xl font-bold text-white">Beschikbaarheid Radar</h1>
+        <p className="mt-2 text-slate-300">
+          Kies waar je woont, stel je straal in en kijk tot 48 uur vooruit. Volg een club en krijg een melding
+          zodra er een baan vrijkomt.
+        </p>
+      </div>
 
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-slate-900">Mijn zoekgebied</h2>
@@ -625,7 +627,18 @@ export default function RadarPage() {
                 <div className="mt-3 border-t border-slate-100 pt-3">
                   {club.sloten.length > 0 ? (() => {
                     const open = uitgeklapt.has(club.id);
-                    const teTonen = open ? club.sloten : club.sloten.slice(0, MAX_TIJDEN_ZICHTBAAR);
+                    // Bij een voorkeurstijd eerst de matchende tijden tonen, dan de
+                    // rest erachteraan — anders kon de standaardweergave (eerste 5)
+                    // volledig uit niet-matchende tijden bestaan terwijl de
+                    // gezochte tijd pas achter "Toon nog N tijden" zat.
+                    const gesorteerd = voorkeurstijd
+                      ? [...club.sloten].sort((a, b) => {
+                          const aPast = binnenTijdvenster(a.tijd, voorkeurstijd, margeUren) ? 0 : 1;
+                          const bPast = binnenTijdvenster(b.tijd, voorkeurstijd, margeUren) ? 0 : 1;
+                          return aPast - bPast || a.tijd.localeCompare(b.tijd);
+                        })
+                      : club.sloten;
+                    const teTonen = open ? gesorteerd : gesorteerd.slice(0, MAX_TIJDEN_ZICHTBAAR);
                     const verborgen = club.sloten.length - teTonen.length;
                     return (
                       <>

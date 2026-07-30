@@ -19,7 +19,7 @@ export default function PricingPage() {
       <h1 className="mt-4 text-4xl font-bold text-slate-900">Prijzen</h1>
       <p className="mt-2 text-slate-600">Gratis om te proberen, betaal alleen als je meerdere clubs en teams wilt volgen.</p>
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="bal-stippen rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-slate-900">Gratis</h2>
           <p className="mt-1 text-3xl font-bold text-slate-900">€0</p>
           <ul className="mt-4 space-y-2 text-sm text-slate-600">

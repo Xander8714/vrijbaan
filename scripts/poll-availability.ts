@@ -79,6 +79,27 @@ function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function wacht(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Pauze tussen Playtomic-aanvragen — een directe, evenredige reactie op de
+ * 403 die op 29 juli 2026 optrad na snel herhaald pollen (twee losse runs
+ * binnen enkele minuten). Later diezelfde dag bevestigd dat de block
+ * TIJDELIJK was (de eerder geblokkeerde club werkte na verloop van tijd
+ * gewoon weer) — dus een nette pauze is de juiste, verhoudingsgewijze
+ * oplossing, niet iets ingrijpenders (geen user-agent-rotatie, geen
+ * IP-omzeiling). Alleen voor Playtomic: Foys en Meet & Play hebben geen
+ * enkele aanwijzing van een probleem, dus die onnodig vertragen heeft geen
+ * zin. Random binnen een bandbreedte, geen vast interval — een menselijker
+ * patroon dan exact om de N seconden.
+ */
+async function pauzeerVoorPlaytomic(clubId: string): Promise<void> {
+  if (POLL_CONFIG[clubId]?.type !== "playtomic") return;
+  await wacht(2000 + Math.random() * 2000);
+}
+
 /** Alle club_id's die minstens één gebruiker volgt (ongeacht of ze pollbaar zijn — dat filtert de caller). */
 async function haalGevolgdeClubIds(): Promise<Set<string>> {
   const supabase = supabaseAdmin();
@@ -223,6 +244,7 @@ async function main(): Promise<void> {
   for (const clubId of teVerwerken) {
     for (const datum of dagen) {
       await pollEenClubEnDag(clubId, datum);
+      await pauzeerVoorPlaytomic(clubId);
     }
   }
 }

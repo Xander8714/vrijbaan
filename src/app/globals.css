@@ -80,3 +80,52 @@ body {
   background-size: 64px 64px;
   background-position: center;
 }
+
+/*
+ * Herhaald padelbaan-schema als paginabreed achtergrondbeeld (29 juli 2026 —
+ * feedback: eerst een abstract lijnenraster geprobeerd, bleek nog steeds "veel
+ * te wit" aan te voelen; dit is de vervanging met echt herkenbare
+ * baanbelijning i.p.v. een generiek grid). De illustratie
+ * (/padelbaan-achtergrond.svg) is eigen werk — geen stockfoto, want dat zou
+ * een licentie vergen. Een lichte gradient erbovenop houdt lopende tekst in
+ * kaarten leesbaar; de baantegels blijven zichtbaar in de tussenruimtes.
+ * Toegepast op <body>, dus elke pagina erft 'm.
+ */
+.baan-achtergrond-licht {
+  background-image:
+    linear-gradient(180deg, rgba(238, 252, 250, 0.88), rgba(238, 252, 250, 0.94)),
+    url("/padelbaan-achtergrond.svg");
+  background-size:
+    auto,
+    340px 170px;
+  background-repeat: no-repeat, repeat;
+  background-position: center, center;
+  background-attachment: fixed, fixed;
+}
+
+/*
+ * Prominente, niet-herhaalde baanillustratie voor paginakoppen (bv. de Radar-
+ * pagina, expliciet genoemd als "te wit" op 29 juli 2026) — dezelfde SVG als
+ * hierboven, maar op volle grootte met een donkere overlay zodat witte tekst
+ * er goed op leest. Dit is bewust een APARTE, opvallendere behandeling dan de
+ * paginabrede tegel-achtergrond: één duidelijk zichtbare "baanfoto"-achtige
+ * band bovenaan, in plaats van overal dezelfde subtiele textuur.
+ */
+.baan-hero {
+  background-image:
+    linear-gradient(160deg, rgba(7, 12, 11, 0.55), rgba(7, 12, 11, 0.88)),
+    url("/padelbaan-achtergrond.svg");
+  background-size: cover;
+  background-position: center;
+}
+
+/*
+ * Bal-stippenpatroon — de gevilte textuur van een padel-/tennisbal, als
+ * stippenraster op lage dekking. Bedoeld als accent op specifieke lichte
+ * secties (bv. een uitgelicht prijskaartje of een lege-staat-melding), niet
+ * op de hele pagina — dat zou te druk worden naast het baanlijnen-patroon.
+ */
+.bal-stippen {
+  background-image: radial-gradient(circle at center, rgba(138, 166, 15, 0.16) 1.6px, transparent 1.6px);
+  background-size: 22px 22px;
+}

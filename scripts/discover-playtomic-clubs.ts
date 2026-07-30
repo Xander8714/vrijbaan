@@ -60,10 +60,12 @@ const LEES_CLUB_JS = `(() => {
   return { tekst: tekst.slice(0, 4000), kop: (h1 && h1.innerText) || "", buren: buren, banen: banen };
 })()`;
 
-async function leesClub(page: Page, slug: string): Promise<RuweClub | null> {
+/** null = pagina niet geladen/dode slug. "geblokkeerd" = expliciet een 403 — apart houden, want dat is geen dode club maar een WAF-reactie (zie PROJECTPLAN.md, 29 juli 2026). */
+async function leesClub(page: Page, slug: string): Promise<RuweClub | null | "geblokkeerd"> {
   const respons = await page
     .goto(`https://playtomic.com/clubs/${slug}`, { waitUntil: "domcontentloaded", timeout: 45000 })
     .catch(() => null);
+  if (respons?.status() === 403) return "geblokkeerd";
   if (!respons || respons.status() >= 400) return null;
   await page.waitForTimeout(2500);
 
@@ -148,9 +150,23 @@ async function main(): Promise<void> {
       bezocht.add(slug);
 
       const ruw = await leesClub(page, slug);
+
+      // Bewust STOPPEN, niet negeren: op 29 juli 2026 gaf herhaald pollen een
+      // 403 die later bleek tijdelijk. Dwars doorheen blijven crawlen zou
+      // tientallen clubs onterecht als "pagina niet geladen" wegschrijven en
+      // de block mogelijk verlengen. Wat tot nu toe gevonden is, is al bewaard.
+      if (ruw === "geblokkeerd") {
+        console.log(`\n⚠ Playtomic gaf 403 bij ${slug} — crawl gestopt (niet: club overgeslagen).`);
+        console.log("Dit bleek eerder een tijdelijke rate-limit, geen permanente block. Probeer over een uur opnieuw.");
+        break;
+      }
       if (!ruw) { overgeslagen.push(`${slug} (pagina niet geladen)`); continue; }
 
       for (const buur of ruw.buren) if (!bezocht.has(buur)) tebezoeken.push(buur);
+
+      // Nette pauze tussen clubs — zelfde redenering als pauzeerVoorPlaytomic
+      // in scripts/poll-availability.ts.
+      await page.waitForTimeout(1000 + Math.random() * 1500);
 
       if (!ruw.adres) { overgeslagen.push(`${ruw.slug} (geen adres in pagina)`); continue; }
       const punt = await geocodeer(ruw.adres);
