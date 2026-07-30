@@ -140,29 +140,75 @@ Playtomic, niet "Matchable" zoals eerder vermoed).
   exacte request-headers uit de browser-devtools over voordat je de parser
   afmaakt.
 
-## 3b. Overige boekingssystemen (researchronde, 29 juli 2026 — nog niet live geverifieerd)
+## 3b. Overige boekingssystemen — live onderzocht (29 juli 2026)
 
-Via WebSearch (padelgids.nl-vergelijking), NIET via eigen devtools-onderzoek
-zoals bij Foys/Overhout — dus als startpunt, niet als bevestiging:
-naast Playtomic/Foys/Meet & Play gebruiken NL-padelclubs ook **Bookaball**
-(nieuw, groeiend, geen technische details gevonden), **i-Reserve**, **Booqr**,
-**Aqqo**, **BookLux** en **OpenResa**. Voor elk hiervan geldt: pas nadat een
-live devtools-check (zoals bij Foys — headers onderscheppen, endpoint
-proberen zonder auth) is gedaan, kan gezegd worden of het een publiek
-endpoint, een Playwright-scraper, of een inlogmuur (zoals Overhout) vergt.
-Niet aannemen op basis van marketingteksten.
+Elk hieronder is live getest tegen een echte Nederlandse (padel)club — niet
+alleen marketingteksten geloofd. Resultaat: **geen van de zeven kon vandaag
+gebouwd worden**, om drie verschillende, principiële redenen. Dat is een
+ander soort uitkomst dan bij Playtomic/Foys/Meet & Play, waar wél een publiek
+pad bestond — waardevol om vast te leggen, niet iets om te verbergen.
 
-## 4. Racketclub Overhout — "Baanreserveren" platform (bevestigd 23 juli 2026)
+### Geblokkeerd door bot-detectie — bewust niet omzeild
+- **Bookaball** (The Padellers, 6 NL-vestigingen, thepadellers.nl/en/court-booking/hoorn):
+  de pagina laadt achter **Cloudflare Turnstile** (`challenges.cloudflare.com`,
+  incl. een `401` op de challenge-endpoint zelf). CAPTCHA/bot-detectie omzeilen
+  is een harde grens (zie de systeeminstructies) — geprobeerd noch gebouwd,
+  ongeacht technische haalbaarheid.
+
+### Platform-brede inlogmuur — bevestigd met meerdere clubs, geen aanname meer
+- **Baanreserveren**: naast Overhout (§4) nog **4 andere echte padelclubs**
+  getest (Padelmate Club, My Padelclub Nijmegen, Roest Leusden Padel, plus 2
+  domeinen die niet meer bestaan). Alle 3 werkende clubs gaven exact dezelfde
+  `?reason=LOGGED_IN`-redirect. Dit is dus platform-breed, geen losse
+  instelling van Overhout — de eerdere §4-aanname ("misschien per club
+  anders") is hiermee weerlegd.
+- **OpenResa**: 4 echte clubs getest (Padel Fever, Padel-centrum Dyckenburch,
+  Padel & Tennisplaza Tiel, ValleyPadel) — alle 4 tonen uitsluitend een
+  gebruikersnaam/wachtwoord-scherm, geen enkele publieke beschikbaarheid.
+
+Beide zijn dus net als Overhout: alleen bruikbaar via een echte, ingelogde
+gebruikerssessie — wat we bewust niet bouwen (geen opslag van
+derdenwachtwoorden, zie developer-skill).
+
+### Geen echt, bevestigd Nederlands padel-doelwit gevonden
+- **i-Reserve**: de eigen referentiepagina (i-reserve.nl/referenties/) toont
+  Grolsch Brouwerijtour, escape rooms, bowling, golf — géén padelclub, ondanks
+  dat i-Reserve zichzelf expliciet als tennis/padel-oplossing profileert.
+  Alleen een synthetische demo beschikbaar; bouwen tegen demodata zou een
+  ongeteste aanname zijn.
+- **Booqr**: eigen case-studies (Sportbedrijf Ataro, VTC de Ridderhof, Gemeente
+  Doesburg, Activiteitencentrum het Punt) zijn algemene sportaccommodaties/
+  tennisclubs, geen enkele expliciet padel.
+- **BookLux**: booklux.com/en/padel-booking-system redirect nu naar
+  **anolla.com** — lijkt geherbrand/overgenomen. Geen NL-padelclub gevonden
+  die het gebruikt.
+
+### Onderzocht maar inconclusief — bewust niet gebouwd
+- **Aqqo** (padel-smit.aqqo.com/book, Padelbaan Dedemsvaart): geen inlogmuur,
+  wel een zwaar sessie-/wizardgedreven flow (Zaal → Datum&Tijd → Voorkeuren →
+  Inloggen), geen publiek endpoint zoals Foys. Een waarschijnlijk-bezet
+  avondslot (20:00) werd zonder enige foutmelding geaccepteerd — onduidelijk
+  of dit systeem daadwerkelijk per tijdslot op bezetting filtert vóór de
+  definitieve boekingsstap. Verder uitzoeken vergt óf een echte boekingspoging
+  (risicovol/onduidelijke gevolgen) óf een club met bekende bezetting om tegen
+  te toetsen — geen van beide nu voorhanden. Ook lijkt dit platform weinig
+  NL-padeldekking te hebben. Niet gebouwd.
+
+## 4. Racketclub Overhout — "Baanreserveren" platform (bevestigd 23 juli 2026, platform-breed bevestigd 29 juli 2026)
 
 - Boekingslink op rcoverhout.nl wijst naar `overhout.baanreserveren.nl/reservations`.
 - **Vereist inloggen** — geen publieke beschikbaarheid-view: de URL
   redirect direct naar een e-mail/wachtwoord-loginscherm
   (`?reason=LOGGED_IN&goto=%2Freservations`), met alleen een
   "Account aanmaken"-link als alternatief.
+- **Update 29 juli 2026**: dit bleek geen losse instelling van Overhout te
+  zijn — 3 andere echte Baanreserveren-padelclubs gaven exact dezelfde
+  redirect (zie §3b). Platform-breed inlogmuur, dus geldt voor élke
+  Baanreserveren-club, niet alleen deze.
 - Betekent: geen simpele publieke GET-poll mogelijk zoals bij Playtomic/Foys.
   Voor deze club zou je een echt lidaccount + ingelogde sessie (cookies) nodig
   hebben, wat een ander risicoprofiel geeft (gebruiksvoorwaarden, kans op
-  accountblokkade) dan de andere drie systemen. **Nog niet opgenomen in
+  accountblokkade) dan de andere systemen. **Nog niet opgenomen in
   `pollConfig.ts`** — bewust, tot hierover een besluit is genomen.
 
 ## 2b. Meet & Play — kan een niet-lid boeken? (bevestigd bij Hofgeest, 29 juli 2026)

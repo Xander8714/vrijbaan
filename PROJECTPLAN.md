@@ -79,6 +79,28 @@ hiermee **één product: de beschikbaarheid-radar.**
 Alle drie de aanbieders (Playtomic, Foys, Meet & Play) leveren dus in één run
 echte data. Dit is de eerste keer dat dat aantoonbaar is.
 
+### Overige boekingssystemen live onderzocht — geen enkele bouwbaar (29 juli 2026, derde ronde)
+Op verzoek "volledig uitgewerkt net als Playtomic en Meet & Play": alle 7
+platforms uit de eerdere researchronde (§3b) live getest tegen echte NL-
+padelclubs, niet alleen marketingteksten. Uitkomst, per reden (zie
+API_REQUIREMENTS.md §3b voor het volledige verslag):
+- **Bookaball**: geblokkeerd door Cloudflare-botdetectie — bewust niet omzeild.
+- **Baanreserveren + OpenResa**: platform-breed inlogmuur, bevestigd met
+  meerdere echte clubs (niet alleen Overhout). Niet bouwbaar zonder
+  derdenwachtwoorden op te slaan, wat we niet doen.
+- **i-Reserve, Booqr, BookLux**: geen enkele bevestigde, echte NL-padelclub
+  gevonden om tegen te bouwen/verifiëren (referenties zijn andere sporten/
+  branches, of het platform is geherbrand).
+- **Aqqo**: wél toegankelijk (geen inlogmuur), maar of het systeem
+  daadwerkelijk per tijdslot op bezetting filtert kon niet bevestigd worden —
+  een waarschijnlijk-bezet avondslot werd zonder foutmelding geaccepteerd.
+  Beperkte NL-padeldekking, dus de investering weegt niet op tegen de baat.
+
+Dit is dus geen onvolledig werk maar een afgeronde, eerlijke conclusie: van
+de 10 onderzochte NL-boekingssystemen (Playtomic, Foys, Meet & Play +
+bovenstaande 7) zijn er drie daadwerkelijk publiek bouwbaar gebleken, en die
+drie zijn ook gebouwd.
+
 ### P1 landelijke uitbreiding afgerond (29 juli 2026, tweede sessie-ronde)
 Na de polling-fix (zie hieronder) is de rest van de P1-lijst afgewerkt:
 - **Meet & Play landelijk**: een complete directory gevonden
