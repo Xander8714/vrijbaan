@@ -2,6 +2,15 @@
  * Playtomic beschikbaarheid via de onofficiële `/v1/availability` endpoint
  * (Route B uit API_REQUIREMENTS.md).
  *
+ * ✅ OPGELOST 29 juli 2026 — GEBRUIK DIT BESTAND NIET MEER VOOR NIEUWE CODE.
+ * De vervanger staat in `scripts/scrape-playtomic.ts` (Playwright op
+ * `playtomic.com/clubs/<slug>?date=YYYY-MM-DD`) en is die dag end-to-end
+ * geverifieerd: WePadel gaf 419 sloten / 27 starttijden, PADEL25 19 sloten /
+ * 7 starttijden voor 30 juli 2026. `scripts/poll-availability.ts` gebruikt
+ * inmiddels die scraper. Dit bestand blijft alleen staan als vastlegging van
+ * waarom de kale fetch-route niet werkt, en als startpunt mocht Playtomic het
+ * endpoint ooit weer openzetten.
+ *
  * ⚠️ BIJGEWERKT 24 juli 2026 — NIET MEER ALLEEN EEN SANDBOX-PROBLEEM:
  * eerder stond hier dat de CloudFront 403 "Request blocked" waarschijnlijk
  * een IP-reputatieblok was, specifiek voor de bouw-sandbox. Dat is nu

@@ -5,11 +5,51 @@
   --foreground: #171717;
 }
 
+/*
+ * Padel-kleurenpalet ("luxe sportief", 29 juli 2026) — vervangt het generieke
+ * emerald/slate-schema. Twee kleuren met echte betekenis in de sport:
+ * - court: het teal/blauwgroen van een padel-baanvloer. Primaire kleur voor
+ *   knoppen, links en actieve status — zelfde schaalopbouw als Tailwinds
+ *   ingebouwde kleuren (50-900), dus court-600 vervangt overal emerald-600.
+ * - ball: het felle geel-groen van een padel-/tennisbal. Bewust NIET overal
+ *   toegepast (te fel voor lopende tekst) — alleen voor accenten die mogen
+ *   opvallen: primaire CTA's, actieve tabs, "Pro"-badges, prijsnadruk.
+ * - ink: een bijna-zwart met een groene ondertoon, voor de donkere hero/nav —
+ *   dat contrast (donker + felle bal-kleur) is wat het "luxe" gevoel geeft
+ *   i.p.v. het vlakke wit-op-wit van de vorige versie.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-court-50: #eefcfa;
+  --color-court-100: #d2f5f0;
+  --color-court-200: #a7ebe1;
+  --color-court-300: #70dbcd;
+  --color-court-400: #3cc2b3;
+  --color-court-500: #1ba89a;
+  --color-court-600: #0d8a80;
+  --color-court-700: #0c6e67;
+  --color-court-800: #0e5753;
+  --color-court-900: #0f4744;
+
+  --color-ball-50: #fcffe6;
+  --color-ball-100: #f7ffc2;
+  --color-ball-200: #edff8f;
+  --color-ball-300: #dcf94f;
+  --color-ball-400: #cbec27;
+  --color-ball-500: #b0cf16;
+  --color-ball-600: #8aa60f;
+  --color-ball-700: #687d10;
+  --color-ball-900: #333d08;
+
+  --color-ink-950: #070c0b;
+  --color-ink-900: #0b1412;
+  --color-ink-800: #121f1c;
+  --color-ink-700: #1b2d29;
+  --color-ink-600: #263d38;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,4 +63,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Subtiel padelbaan-lijnenpatroon voor donkere secties (hero, kaarten op
+ * ink-achtergrond). Dit zijn de service-lijnen + het middenlijntje van een
+ * padelbaan, als dun lijnenraster op zeer lage dekking — herkenbaar bij
+ * bewust kijken, geen ruis die de leesbaarheid stoort. Puur CSS (geen
+ * losse afbeelding nodig, dus geen extra request en altijd scherp op elk
+ * scherm).
+ */
+.baan-achtergrond {
+  background-image:
+    linear-gradient(rgba(203, 236, 39, 0.09) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgba(203, 236, 39, 0.09) 1.5px, transparent 1.5px);
+  background-size: 64px 64px;
+  background-position: center;
 }

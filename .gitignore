@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vendored/gedownloade skill-referentiepakketten (bv. via `npx skills add`) —
+# herdownloadbaar via skills-lock.json, geen projectcode. Eigen skills onder
+# .claude/skills/{developer,tester,business-analyst}/ blijven wel getrackt.
+.agents/skills/supabase*/
+.claude/skills/supabase*/

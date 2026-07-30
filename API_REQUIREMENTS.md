@@ -81,7 +81,43 @@ niets aan te maken bij Playtomic zelf om te beginnen.
   boekbare tijd), geen kapotte selector. Verifieer twijfel door dezelfde club
   voor morgen te scrapen — als die wél sloten teruggeeft, werkt de scraper.
 
-## 3. Peakz Padel Haarlem — "Foys" platform (bevestigd 23 juli 2026)
+## 3. Peakz Padel — "Foys" platform — ✅ WERKEND (29 juli 2026)
+
+**OPGELOST: de kale fetch gaf `[]` omdat twee headers ontbraken.** De
+Peakz-frontend stuurt bij élke api.foys.io-call mee:
+
+```
+x-organisationid: df82f4dd-fd87-4af5-9c2f-656fe1a44357
+x-federationid:   df82f4dd-fd87-4af5-9c2f-656fe1a44357
+```
+
+Zonder die headers antwoordt de API **200 met een lege array** — geen 401, geen
+foutmelding. Daarom leek het eerder op "niets beschikbaar" in plaats van op een
+ontbrekende organisatiecontext. Gevonden door al het api.foys.io-verkeer van
+`peakzpadel.nl/reserveren` te onderscheppen met Playwright.
+
+**Endpoints (GET, publiek, mét die twee headers):**
+- `/court-booking/public/api/v1/locations` → **26 vestigingen** in heel
+  Nederland met adres, stad, `latitude`/`longitude`, `courtsCount` en banen.
+- `/court-booking/public/api/v1/locations/search?reservationTypeId=6&playingTimes[]=60&playingTimes[]=90&playingTimes[]=120&date=YYYY-MM-DDT00:00`
+  → dezelfde 26 vestigingen, elk met `inventoryItemsTimeSlots[].timeSlots[]`
+  (`startTime`, `endTime`, `price`, `duration`, `isAvailable`).
+  **De `locationId`-parameter filtert NIET** — je krijgt altijd alles terug.
+  `src/lib/scrapers/foys.ts` cachet daarom per datum en filtert zelf, zodat 26
+  clubs één HTTP-call per dag kosten in plaats van 26.
+
+**⚠️ CORRECTIE op wat hieronder stond:** `527bd7b9-d8d3-4c43-a2cb-997e5baa0527`
+is **Amersfoort - Middelhoefseweg**, niet Haarlem. Haarlem is
+`f5b45a7e-3e05-4b86-bb73-8a01dbb27ae9` ("Haarlem - Haarlemmerstroom", 4 banen).
+
+**Deep links:** per vestiging bestaat `peakzpadel.nl/locaties/<stad>/<vestiging>`
+(geverifieerd door de links op `/locaties` uit te lezen). Deep-linken via een
+query-parameter op de reserveringspagina werkt níet — `?locationId=`,
+`?location=` en `?locatie=` geven allemaal weer de stadskiezer.
+
+**Genereren:** `npm run import:foys` → `src/lib/clubs.foys.ts`.
+
+### Oorspronkelijke aantekeningen (23 juli 2026)
 
 Gevonden via live netwerk-inspectie van
 `https://www.peakzpadel.nl/reserveren/court-booking/reservation` (niet
@@ -117,6 +153,27 @@ Playtomic, niet "Matchable" zoals eerder vermoed).
   accountblokkade) dan de andere drie systemen. **Nog niet opgenomen in
   `pollConfig.ts`** — bewust, tot hierover een besluit is genomen.
 
+## 2b. Meet & Play — kan een niet-lid boeken? (bevestigd bij Hofgeest, 29 juli 2026)
+
+Belangrijke correctie op een eerdere aanname: Meet & Play is GEEN gesloten
+ledensysteem, in elk geval niet bij Hofgeest (club 29942). Geverifieerd via
+Playwright (headless, geen ingelogde sessie):
+1. Een slot toevoegen aan het winkelmandje (prijs zichtbaar, bv. €20,00 voor
+   60 min) vereist geen enkele lidmaatschapscheck.
+2. Op "Afrekenen" klikken stuurt naar `meetandplay.nl/inloggen` — dit is een
+   **KNLTB ID**, een gratis account op alleen een e-mailadres ("Voer e-mail in,
+   druk dan op het pijltje rechts"), zichtbaar op de pagina zelf: "Een KNLTB ID
+   is een kosteloze registratie van je gegevens die ervoor zorgt dat je met 1
+   mailadres toegang hebt tot Meet & Play en andere KNLTB diensten." Dit is
+   geen Hofgeest-lidmaatschap en geen contributie.
+
+**Conclusie voor Hofgeest**: iedereen kan boeken, mits een gratis KNLTB ID.
+`src/lib/clubs.ts` zet `boekbaarZonderLidmaatschap: true` voor hofgeest.
+
+**Niet aangenomen voor andere Meet & Play-clubs** (Schoten, Groeneveen, Pim
+Mulier): clubs kunnen dit per vestiging anders instellen (bv. baanhuur alleen
+voor leden opzetten). Elk apart verifiëren vóór landelijke import.
+
 ## 5. Supabase — zie README.md
 ## 6. Stripe — zie README.md
 
@@ -138,8 +195,23 @@ Playtomic, niet "Matchable" zoals eerder vermoed).
    (`scripts/poll-availability.ts`, `supabase/schema.sql`). Niet zelf getest:
    de Supabase-lees/schrijfcyclus en de Telegram-notificatie (geen
    credentials beschikbaar in de bouw-sandbox).
-6. Bouw de Foys-parser af (`src/lib/scrapers/foys.ts`) zodra de juiste
-   request-headers bevestigd zijn (zie §3).
-7. Besluit hoe (of of) Overhout meegenomen wordt gezien de inlogmuur (zie §4).
-8. Vervang `fetchPlaytomicAvailability` (kale fetch, werkt niet) door een
-   Playwright-scraper voor WePadel/PADEL25, of vraag Route A-toegang aan.
+6. ~~Bouw de Foys-parser af~~ — **gedaan en werkend (29 juli 2026)**: de
+   ontbrekende headers (`x-organisationid`/`x-federationid`) waren de oorzaak
+   van de lege `[]`-response, zie §3. Levert nu alle 26 vestigingen + prijs
+   per slot.
+7. Besluit hoe (of of) Overhout meegenomen wordt gezien de inlogmuur (zie
+   §4) — **nog open**. Wordt nu getoond als ledenclub (checkbox "ik ben hier
+   lid"), niet in de standaardlijst.
+8. ~~Vervang `fetchPlaytomicAvailability` door een Playwright-scraper~~ —
+   **gedaan (29 juli 2026)**: `scripts/scrape-playtomic.ts`, end-to-end
+   geverifieerd tegen WePadel/PADEL25, incl. prijs per slot. De landelijke
+   crawl (`scripts/discover-playtomic-clubs.ts`) leverde daarnaast 82
+   Playtomic-clubs op (crawl nog niet compleet, zie PROJECTPLAN.md taak
+   "Playtomic-crawl afmaken").
+9. Meet & Play — prijs per tijdslot nog niet uitgelezen (alleen starttijden).
+   Foys en Playtomic tonen al prijs; zie PROJECTPLAN.md taak "Meet & Play
+   prijs-extractie bouwen".
+10. Meet & Play landelijk: alleen Hofgeest (29942) bekend. **Belangrijke
+    correctie (zie §2b)**: de aanname "alleen leden kunnen boeken" bleek fout
+    bij Hofgeest — een gratis KNLTB ID volstaat. Niet aannemen dat dit voor
+    elke Meet & Play-club geldt; per club verifiëren vóór landelijke import.

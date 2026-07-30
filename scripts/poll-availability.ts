@@ -6,8 +6,10 @@
  * de herhaling is de verantwoordelijkheid van de scheduler.
  *
  * Per club in POLL_CONFIG (src/lib/pollConfig.ts):
- * 1. Haal actuele sloten op (Meet & Play via Playwright, of Playtomic via
- *    de onofficiële endpoint — zie de respectievelijke scraper-modules).
+ * 1. Haal actuele sloten op. Zowel Meet & Play als Playtomic gaan via
+ *    Playwright: de eerste omdat de site op Laravel Livewire draait, de tweede
+ *    omdat de oude JSON-endpoint dood is en de data nu server-side gerenderd
+ *    in de clubpagina staat (zie de respectievelijke scraper-modules).
  * 2. Vergelijk met de laatst opgeslagen stand in Supabase (club_beschikbaarheid).
  * 3. Bij een nieuw slot (niet bij de allereerste meting — zie
  *    availabilityDiff.ts): stuur een Telegram-notificatie.
@@ -21,7 +23,7 @@
  */
 
 import { scrapeMeetAndPlay } from "./scrape-meetandplay";
-import { fetchPlaytomicAvailability } from "../src/lib/scrapers/playtomic";
+import { scrapePlaytomic, uniekeStarttijden } from "./scrape-playtomic";
 import { fetchFoysAvailability } from "../src/lib/scrapers/foys";
 import { CLUBS } from "../src/lib/clubs";
 import { POLL_CONFIG } from "../src/lib/pollConfig";
@@ -57,11 +59,13 @@ async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
     case "meetandplay":
       return (await scrapeMeetAndPlay(bron.meetAndPlayClubId, datum)).slots;
     case "playtomic":
-      return (await fetchPlaytomicAvailability(bron.tenantId, datum)).map((s) => ({ startTime: s.startTime }));
-    case "foys":
-      return (await fetchFoysAvailability(bron.locationId, bron.reservationTypeId, datum)).map((s) => ({
-        startTime: s.startTime,
-      }));
+      return uniekeStarttijden(await scrapePlaytomic(bron.slug, datum));
+    case "foys": {
+      const sloten = await fetchFoysAvailability(bron.locationId, datum);
+      // Meerdere speelduren delen dezelfde starttijd; voor de radar telt de
+      // starttijd, dus dubbelen eruit.
+      return [...new Set(sloten.map((s) => s.startTime))].sort().map((startTime) => ({ startTime }));
+    }
   }
 }
 

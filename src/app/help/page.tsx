@@ -2,7 +2,6 @@ import Link from "next/link";
 
 const usecases = [
   { titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club", stappen: ["Ga naar Radar.", "Klik 'Volg deze club' bij één of meerdere clubs.", "Zodra de live-koppeling actief is, krijg je een melding zodra er een slot vrijkomt."] },
-  { titel: "Ik ben aanvoerder en moet een competitie-opstelling maken", stappen: ["Ga naar Opstelling.", "Voer je beschikbare spelers in met hun KNLTB-speelsterkte.", "Voeg optioneel de tegenstander-spelers toe.", "Klik 'Bereken beste opstelling'."] },
   { titel: "Ik wil meerdere clubs volgen zonder limiet", stappen: ["Maak een account aan via Inloggen.", "Ga naar Prijzen en upgrade naar Pro.", "Je account ontgrendelt direct alle 8 clubs."] },
 ];
 const faq = [
@@ -15,7 +14,7 @@ const faq = [
 export default function HelpPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
-      <Link href="/" className="text-sm text-emerald-700 hover:underline">&larr; Terug</Link>
+      <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="mt-4 text-3xl font-bold text-slate-900">Help &amp; Use cases</h1>
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-slate-900">Zo gebruik je VrijBaan</h2>

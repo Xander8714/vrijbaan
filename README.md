@@ -1,18 +1,23 @@
 # VrijBaan
 
-Padel-app voor Haarlem + 5 km: beschikbaarheid-radar over 8 clubs (Playtomic +
-KNLTB Meet & Play) en een opstelling-optimizer voor KNLTB-competitieteams.
+Padel-beschikbaarheid-radar voor Nederland: zoek op adres/plaats, stel een
+straal in en zie live vrije baantijden — mét prijs — bij clubs op Playtomic,
+Foys (Peakz) en KNLTB Meet & Play. Begonnen in Haarlem, inmiddels landelijk
+(112+ clubs). Er is geen aparte opstelling-tool meer — dit is nu één product:
+de beschikbaarheid-radar. Zie `PROJECTPLAN.md` voor de volledige geschiedenis
+en openstaande beslissingen.
 
 ## Starten (zonder Supabase/Stripe)
 ```bash
 npm install
 npm run dev
 ```
-Alles werkt meteen met mock-data; login/betalen tonen nette meldingen i.p.v. te crashen.
+Alles werkt meteen; login/betalen tonen nette meldingen i.p.v. te crashen.
 
 ## Volledige functionaliteit (login, opslaan, betalen)
 1. Gratis project op supabase.com, keys in `.env.local` (kopieer `.env.example`).
-2. Voer `supabase/schema.sql` uit in de Supabase SQL editor.
+2. Voer `supabase/schema.sql` én de bestanden in `supabase/migraties/` uit in
+   de Supabase SQL editor (in datumvolgorde).
 3. Stripe test-account, product "VrijBaan Pro", keys in `.env.local`.
 4. Lokaal webhook testen: `stripe listen --forward-to localhost:3000/api/webhook`.
 
@@ -25,41 +30,56 @@ docker compose up
 ```bash
 npm test
 ```
-9 unit tests op `src/lib/lineup.ts`.
+44 unit tests (vitest) over `src/lib/__tests__/*` — lineup-rekenmodel,
+adres/straal-berekening (`geo.ts`), tijdvenster-matching (`tijd.ts`),
+beschikbaarheid-diff en boekingslinks.
 
 ## Mobiel
 PWA (`public/manifest.json`) — "Toevoegen aan beginscherm" op je telefoon.
-Native app: zie `vrijbaan-mobile/` (Expo), test via Expo Go — geen Apple-account nodig.
+Native app: zie `vrijbaan-mobile/` (Expo, nog vroeg — scope is de Radar, niet
+de verwijderde opstelling-tool, zie PROJECTPLAN.md §9.4).
 
 ## Live boekingsdata — status
-Zie `API_REQUIREMENTS.md` voor de volledige uitleg. Kort: Playtomic tenant_id's
-voor WePadel en PADEL25 zijn gevonden (staan in dit bestand als `clubs.ts`
-commentaar); Meet & Play (Hofgeest) draait op Laravel Livewire en vereist een
-headless-browser aanpak (`src/lib/scrapers/meetandplay.ts`), geen losse fetch.
-Peakz en Overhout zijn nog niet bevestigd op Playtomic.
+Zie `API_REQUIREMENTS.md` voor de volledige technische uitleg per systeem.
+Kort: alle drie systemen werken end-to-end en zijn live geverifieerd —
+Playtomic en Meet & Play via een Playwright-scraper (headless browser, de
+sites hebben geen bruikbare publieke API), Foys (Peakz, 26 vestigingen) via
+een publiek GET-endpoint. Beschikbaarheid wordt **op aanvraag** opgehaald
+voor de clubs die een gebruiker na filteren daadwerkelijk ziet (max. 20
+clubs per zoekopdracht) — niet doorlopend gepolld, dat zou bij honderden
+clubs veel te lang duren. `scripts/poll-availability.ts` (de losse
+polling-job voor notificaties) bestaat wel, maar is nog niet end-to-end
+getest met echte Supabase/Telegram-credentials.
 
 ## Gebruikerstesten
 Zie `USER_TESTING.md`.
 
-## Meet & Play scraper (Playwright)
+## Scrapers (Playwright)
 
-`scripts/scrape-meetandplay.ts` haalt echte beschikbaarheid op bij Meet & Play
-clubs (Hofgeest e.a.) door de pagina als een echte browser te bedienen —
-nodig omdat de site op Laravel Livewire draait, niet op een publieke API.
-
-**Eenmalig lokaal instellen:**
+Twee bronnen draaien via een headless browser omdat er geen stabiele
+publieke API is:
 ```bash
-npx playwright install chromium
+npm run scrape:meetandplay -- 29942 2026-07-30   # Meet & Play, club-id + optionele datum
+npx tsx scripts/scrape-playtomic.ts wepadel-haarlem 2026-07-30  # Playtomic, club-slug + optionele datum
 ```
-(Kon in mijn sandbox niet gedownload worden door een netwerk-allowlist —
-zou bij jou lokaal gewoon moeten werken.)
+**Eenmalig lokaal instellen:** `npx playwright install chromium`
 
-**Draaien:**
+## Diagnose: wat is er nu beschikbaar?
 ```bash
-npm run scrape:meetandplay -- 29942
+npm run check -- Haarlem 10 2026-07-30 12:00 2
+#                plaats  km  datum      tijd  marge-in-uren
 ```
-Print de beschikbare starttijden voor vandaag bij Hofgeest (club 29942) als JSON.
+Print per club binnen de straal wat er op die dag rond die tijd vrij is —
+zonder iets naar Supabase te schrijven. Handig om te controleren of alle
+scrapers nog werken.
 
-**Nog open:** datumnavigatie (welke UI-elementen de datum wijzigen is nog niet
-gevonden — vermoedelijk een custom widget, geen native date input), en het
-resultaat wegschrijven naar de database i.p.v. alleen naar console.
+## Landelijke clubdata verzamelen
+```bash
+npm run discover:playtomic -- 400   # crawlt Playtomic-clubpagina's, schrijft src/lib/clubs.playtomic.ts
+npx tsx scripts/import-foys-clubs.ts # haalt alle Foys/Peakz-vestigingen op
+```
+
+## Projectskills
+Zie `.claude/skills/` — `developer` (codeconventies van dit repo),
+`tester` (hoe je een wijziging hier verifieert) en `business-analyst`
+(commerciële/product-afwegingen tot beslisklare opties uitwerken).

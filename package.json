@@ -9,7 +9,11 @@
     "lint": "eslint",
     "test": "vitest run",
     "scrape:meetandplay": "tsx scripts/scrape-meetandplay.ts",
-    "poll:availability": "tsx scripts/poll-availability.ts"
+    "scrape:playtomic": "tsx scripts/scrape-playtomic.ts",
+    "poll:availability": "tsx scripts/poll-availability.ts",
+    "import:foys": "tsx scripts/import-foys-clubs.ts",
+    "discover:playtomic": "tsx scripts/discover-playtomic-clubs.ts",
+    "check": "tsx scripts/check-beschikbaarheid.ts"
   },
   "dependencies": {
     "next": "16.2.11",
