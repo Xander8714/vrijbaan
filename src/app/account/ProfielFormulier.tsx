@@ -3,8 +3,31 @@ import { useMemo, useState } from "react";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
 import type { Profiel } from "@/lib/types";
-import { LEDEN_CLUBS } from "@/lib/clubs";
+import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { normaliseerMobielNummer, toonMobielNummer } from "@/lib/telefoon";
+
+/**
+ * Probeert een los getypte verenigingsnaam alsnog aan een bekende club te
+ * koppelen — Xander (30 juli 2026): "ik typ hofgeest en dan wil ik ltc
+ * hofgeest als mogelijkheid, want het systeem herkent de club niet". Zoekt
+ * over ALLE clubs (niet alleen de leden-only lijst): Hofgeest zelf is
+ * bijvoorbeeld inmiddels een gewone, vrij boekbare club, maar iemand kan er
+ * best lid van willen aangeven te zijn.
+ *
+ * Bewust een exacte-of-eenduidige-match, geen "beste gok": bij meerdere
+ * treffers (bv. "padel" matcht tientallen clubs) blijft de ruwe tekst staan
+ * i.p.v. willekeurig de eerste te kiezen.
+ */
+function herkenClub(ruw: string): string {
+  if (CLUBS_INCLUSIEF_LEDENCLUBS.some((c) => c.id === ruw)) return ruw;
+  const term = ruw.trim().toLowerCase();
+  if (!term) return ruw;
+  const exact = CLUBS_INCLUSIEF_LEDENCLUBS.find((c) => c.naam.toLowerCase() === term);
+  if (exact) return exact.id;
+  const treffers = CLUBS_INCLUSIEF_LEDENCLUBS.filter((c) => c.naam.toLowerCase().includes(term));
+  return treffers.length === 1 ? treffers[0].id : ruw;
+}
 
 /**
  * Eigen gegevens bekijken en bijwerken. De locatie wordt niet als losse
@@ -19,45 +42,72 @@ export default function ProfielFormulier({
   userId: string;
   beginProfiel: Profiel;
 }) {
-  const [profiel, setProfiel] = useState<Profiel>(beginProfiel);
+  // Bestaande, niet-herkende lidmaatschappen (zoals "hofgeest" ingetypt vóór
+  // deze club een echte match kon zijn) meteen bij het laden proberen te
+  // herkennen — dan klopt het label al zonder dat de gebruiker iets hoeft te
+  // doen, en overschrijft "Opslaan" de ruwe tekst met het echte club-id.
+  const [profiel, setProfiel] = useState<Profiel>(() => ({
+    ...beginProfiel,
+    lidmaatschappen: beginProfiel.lidmaatschappen.map(herkenClub),
+  }));
   const [status, setStatus] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [bezig, setBezig] = useState(false);
-  const [eigenVereniging, setEigenVereniging] = useState("");
+  const [verenigingZoekterm, setVerenigingZoekterm] = useState("");
+  const [telefoonInvoer, setTelefoonInvoer] = useState(
+    profiel.telefoon ? toonMobielNummer(profiel.telefoon) : ""
+  );
+  const [telefoonFout, setTelefoonFout] = useState<string | null>(null);
 
   /**
-   * De keuzelijst met ledenclubs staat bewust ná de woonplaats: zodra we een
-   * middelpunt hebben, sorteren we op afstand en tonen we alleen clubs binnen
-   * 50 km. Dat houdt de lijst kort en relevant in plaats van een landelijke
-   * opsomming. Staat er geen locatie, dan gewoon alles op alfabet.
+   * Suggesties terwijl je typt, over ALLE clubs (niet alleen leden-only) —
+   * zodat "hofgeest" ook "LTC Hofgeest" oplevert, ook al is die club zelf
+   * gewoon vrij boekbaar. Op afstand gesorteerd zodra we een middelpunt
+   * hebben, anders op naam. Al toegevoegde clubs niet nogmaals voorstellen.
    */
-  const ledenClubKeuzes = useMemo(() => {
-    if (profiel.lat === null || profiel.lon === null) {
-      return LEDEN_CLUBS.map((c) => ({ ...c, afstandKm: null as number | null })).sort((a, b) =>
-        a.naam.localeCompare(b.naam, "nl")
-      );
-    }
-    const vanaf = { lat: profiel.lat, lon: profiel.lon };
-    return LEDEN_CLUBS.map((c) => ({ ...c, afstandKm: afgerondeAfstand(vanaf, c) }))
-      .filter((c) => (c.afstandKm ?? 0) <= 50)
-      .sort((a, b) => (a.afstandKm ?? 0) - (b.afstandKm ?? 0));
-  }, [profiel.lat, profiel.lon]);
+  const verenigingSuggesties = useMemo(() => {
+    const term = verenigingZoekterm.trim().toLowerCase();
+    if (term.length < 2) return [];
+    const kandidaten = CLUBS_INCLUSIEF_LEDENCLUBS.filter(
+      (c) => c.naam.toLowerCase().includes(term) && !profiel.lidmaatschappen.includes(c.id)
+    );
+    const metAfstand =
+      profiel.lat !== null && profiel.lon !== null
+        ? kandidaten.map((c) => ({ ...c, afstandKm: afgerondeAfstand({ lat: profiel.lat!, lon: profiel.lon! }, c) }))
+            .sort((a, b) => a.afstandKm - b.afstandKm)
+        : kandidaten.map((c) => ({ ...c, afstandKm: null as number | null })).sort((a, b) => a.naam.localeCompare(b.naam, "nl"));
+    return metAfstand.slice(0, 8);
+  }, [verenigingZoekterm, profiel.lat, profiel.lon, profiel.lidmaatschappen]);
 
   const voegLidmaatschapToe = (waarde: string) => {
     const schoon = waarde.trim();
     if (!schoon || profiel.lidmaatschappen.includes(schoon)) return;
-    setProfiel((p) => ({ ...p, lidmaatschappen: [...p.lidmaatschappen, schoon] }));
+    setProfiel((p) => ({ ...p, lidmaatschappen: [...p.lidmaatschappen, herkenClub(schoon)] }));
   };
 
   const verwijderLidmaatschap = (waarde: string) =>
     setProfiel((p) => ({ ...p, lidmaatschappen: p.lidmaatschappen.filter((l) => l !== waarde) }));
 
-  // Een lidmaatschap kan een club-id zijn of een zelf getypte naam.
+  // Een lidmaatschap kan een club-id zijn of een (nog) niet-herkende, zelf
+  // getypte naam — zoek over alle clubs, niet alleen de leden-only lijst.
   const lidmaatschapLabel = (waarde: string) =>
-    LEDEN_CLUBS.find((c) => c.id === waarde)?.naam ?? waarde;
+    CLUBS_INCLUSIEF_LEDENCLUBS.find((c) => c.id === waarde)?.naam ?? waarde;
 
   const zet = <K extends keyof Profiel>(veld: K, waarde: Profiel[K]) =>
     setProfiel((p) => ({ ...p, [veld]: waarde }));
+
+  const werkTelefoonBij = (invoer: string) => {
+    setTelefoonInvoer(invoer);
+    if (invoer.trim() === "") { setTelefoonFout(null); zet("telefoon", null); return; }
+    const genormaliseerd = normaliseerMobielNummer(invoer);
+    if (genormaliseerd === null) {
+      setTelefoonFout("Dit is geen geldig Nederlands mobiel nummer (bv. 06 12345678 of +31 6 12345678).");
+      zet("telefoon", null);
+    } else {
+      setTelefoonFout(null);
+      zet("telefoon", genormaliseerd);
+    }
+  };
 
   const kiesLocatie = (loc: GevondenLocatie) => {
     setProfiel((p) => ({
@@ -72,7 +122,9 @@ export default function ProfielFormulier({
   };
 
   const opslaan = async () => {
-    setFout(null); setStatus(null); setBezig(true);
+    setFout(null); setStatus(null);
+    if (telefoonFout) { setFout("Los eerst het telefoonnummer op, of maak het veld leeg."); return; }
+    setBezig(true);
     const supabase = supabaseBrowser();
     const { error } = await supabase
       .from("profiles")
@@ -84,6 +136,7 @@ export default function ProfielFormulier({
         // zichtbaar blijven, anders lijkt een zelf getypt getal officieel.
         speelsterkte_bron: profiel.speelsterkte === null ? null : "handmatig",
         bondsnummer: profiel.bondsnummer,
+        telefoon: profiel.telefoon,
         straat: profiel.straat,
         huisnummer: profiel.huisnummer,
         postcode: profiel.postcode,
@@ -101,7 +154,7 @@ export default function ProfielFormulier({
       const kolomOntbreekt = /column|schema cache/i.test(error.message);
       setFout(
         kolomOntbreekt
-          ? "De database mist nog de nieuwe profielkolommen. Voer supabase/migraties/2026-07-29-profielgegevens-en-clubaanmeldingen.sql uit in de Supabase SQL editor."
+          ? "De database mist nog profielkolommen. Voer de bestanden in supabase/migraties/ uit in de Supabase SQL editor (2026-07-29-... en 2026-07-30-telefoonnummer.sql)."
           : `Opslaan mislukt: ${error.message}`
       );
       return;
@@ -151,68 +204,101 @@ export default function ProfielFormulier({
             )}
           </div>
           {tekstveld("KNLTB-bondsnummer", "bondsnummer", "optioneel")}
+          <div>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="veld-telefoon">
+              Mobiel nummer
+            </label>
+            <input
+              id="veld-telefoon"
+              type="tel"
+              inputMode="tel"
+              value={telefoonInvoer}
+              onChange={(e) => werkTelefoonBij(e.target.value)}
+              placeholder="06 12345678 (optioneel)"
+              className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${telefoonFout ? "border-red-400" : "border-slate-300"}`}
+            />
+            <p className={`mt-1 text-xs ${telefoonFout ? "text-red-600" : "text-slate-500"}`}>
+              {telefoonFout ?? "Optioneel — voor toekomstige meldingen per sms/WhatsApp. Alleen mobiele nummers."}
+            </p>
+          </div>
         </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="font-semibold text-slate-900">Waar zoek je banen?</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Kies je straat of woonplaats. De Radar toont dan alleen clubs binnen je straal — ook in dorpen om je heen.
+          Typ je woonplaats of postcode. De Radar toont dan alleen clubs binnen je straal — ook in dorpen om je heen.
         </p>
         <div className="mt-3">
-          <LocatieKiezer onKies={kiesLocatie} beginwaarde={profiel.woonplaats ?? ""} />
+          <LocatieKiezer onKies={kiesLocatie} beginwaarde={profiel.woonplaats ?? ""} label="Woonplaats of postcode" />
         </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {tekstveld("Straat", "straat")}
-          {tekstveld("Huisnummer", "huisnummer")}
-          {tekstveld("Postcode", "postcode")}
-          {tekstveld("Woonplaats", "woonplaats")}
-        </div>
-        {/* Lidmaatschappen: direct na de woonplaats, zodat de keuzelijst op
-            afstand gesorteerd en kort kan zijn. */}
+        {profiel.woonplaats && (
+          <p className="mt-2 text-sm text-slate-700">
+            Gekozen: <span className="font-medium">{profiel.woonplaats}</span>
+            {profiel.postcode ? ` (${profiel.postcode})` : ""}
+          </p>
+        )}
+        {/* Straat/huisnummer zijn bewust ondergeschikt — Xander (30 juli 2026):
+            "gebruik alleen plaats of postcode, straat is optioneel". Ze doen
+            niets voor de straal-berekening (die draait op lat/lon uit de
+            zoekactie hierboven), dus dit is puur voor wie het adres exact wil
+            vastleggen. */}
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-700">
+            Straat en huisnummer toevoegen (optioneel)
+          </summary>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            {tekstveld("Straat", "straat", "optioneel")}
+            {tekstveld("Huisnummer", "huisnummer", "optioneel")}
+          </div>
+        </details>
+        {/* Lidmaatschappen: direct na de woonplaats, zodat suggesties op
+            afstand gesorteerd en kort kunnen zijn. */}
         <div className="mt-4 border-t border-slate-100 pt-4">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="veld-ledenclub">
+          <label className="block text-sm font-medium text-slate-700" htmlFor="veld-vereniging-zoek">
             Ben je lid van een vereniging?
           </label>
           <p className="mt-1 text-xs text-slate-500">
-            Bij verenigingen kun je alleen als lid boeken, dus die verbergen we normaal. Geef je aan dat je er lid
-            bent, dan tonen we hun vrije banen wél — met een link naar de clubsite.
+            Bij verenigingen kun je vaak alleen als lid boeken, dus die verbergen we normaal. Geef je aan dat je er
+            lid bent, dan tonen we hun vrije banen wél — met een link naar de clubsite.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <select
-              id="veld-ledenclub"
-              defaultValue=""
-              onChange={(e) => { voegLidmaatschapToe(e.target.value); e.currentTarget.value = ""; }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">— kies een vereniging —</option>
-              {ledenClubKeuzes.map((club) => (
-                <option key={club.id} value={club.id}>
-                  {club.naam}{club.afstandKm !== null ? ` (${club.afstandKm} km)` : ""}
-                </option>
-              ))}
-            </select>
+          <div className="relative mt-2 max-w-sm">
             <input
-              value={eigenVereniging}
-              onChange={(e) => setEigenVereniging(e.target.value)}
+              id="veld-vereniging-zoek"
+              value={verenigingZoekterm}
+              onChange={(e) => setVerenigingZoekterm(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); voegLidmaatschapToe(eigenVereniging); setEigenVereniging(""); }
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                if (verenigingSuggesties.length > 0) voegLidmaatschapToe(verenigingSuggesties[0].id);
+                else if (verenigingZoekterm.trim()) voegLidmaatschapToe(verenigingZoekterm);
+                setVerenigingZoekterm("");
               }}
-              placeholder="Of typ je verenigingsnaam"
-              aria-label="Verenigingsnaam zelf invullen"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Typ een verenigingsnaam, bv. Hofgeest"
+              aria-label="Zoek een vereniging"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
-            <button type="button"
-              onClick={() => { voegLidmaatschapToe(eigenVereniging); setEigenVereniging(""); }}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              Toevoegen
-            </button>
+            {verenigingSuggesties.length > 0 && (
+              <ul className="absolute z-10 mt-1 w-full max-h-56 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2 shadow-md">
+                {verenigingSuggesties.map((club) => (
+                  <li key={club.id}>
+                    <button type="button"
+                      onClick={() => { voegLidmaatschapToe(club.id); setVerenigingZoekterm(""); }}
+                      className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-court-50">
+                      {club.naam} <span className="text-slate-400">· {club.plaats}{club.afstandKm !== null ? ` (${club.afstandKm} km)` : ""}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {verenigingZoekterm.trim().length >= 2 && verenigingSuggesties.length === 0 && (
+              <button type="button"
+                onClick={() => { voegLidmaatschapToe(verenigingZoekterm); setVerenigingZoekterm(""); }}
+                className="mt-1 text-xs font-medium text-court-700 hover:underline">
+                &quot;{verenigingZoekterm.trim()}&quot; niet in de lijst — toch toevoegen als eigen tekst
+              </button>
+            )}
           </div>
-          {ledenClubKeuzes.length === 0 && (
-            <p className="mt-1 text-xs text-slate-400">
-              Geen verenigingen bekend binnen 50 km — typ de naam dan zelf.
-            </p>
-          )}
           {profiel.lidmaatschappen.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-2">
               {profiel.lidmaatschappen.map((l) => (

@@ -12,7 +12,7 @@ export default async function AccountPage() {
   const { data: rij } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen"
+      "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, telefoon"
     )
     .eq("id", user.id)
     .single();
@@ -35,6 +35,7 @@ export default async function AccountPage() {
     lon: rij?.lon ?? null,
     zoekstraalKm: rij?.zoekstraal_km ?? 10,
     lidmaatschappen: rij?.lidmaatschappen ?? [],
+    telefoon: rij?.telefoon ?? null,
   };
 
   const volledigeNaam = [profiel.voornaam, profiel.achternaam].filter(Boolean).join(" ");

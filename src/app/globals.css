@@ -66,56 +66,58 @@ body {
 }
 
 /*
- * Subtiel padelbaan-lijnenpatroon voor donkere secties (hero, kaarten op
- * ink-achtergrond). Dit zijn de service-lijnen + het middenlijntje van een
- * padelbaan, als dun lijnenraster op zeer lage dekking — herkenbaar bij
- * bewust kijken, geen ruis die de leesbaarheid stoort. Puur CSS (geen
- * losse afbeelding nodig, dus geen extra request en altijd scherp op elk
- * scherm).
+ * Homepage-hero: zelfde foto en donkere overlay als .baan-hero (zie onder) —
+ * vervangt het eerdere pure-CSS lijnenpatroon zodat de hele app dezelfde
+ * "echte foto" achtergrond deelt i.p.v. drie verschillende behandelingen.
  */
 .baan-achtergrond {
   background-image:
-    linear-gradient(rgba(203, 236, 39, 0.09) 1.5px, transparent 1.5px),
-    linear-gradient(90deg, rgba(203, 236, 39, 0.09) 1.5px, transparent 1.5px);
-  background-size: 64px 64px;
+    linear-gradient(160deg, rgba(7, 12, 11, 0.6), rgba(7, 12, 11, 0.88)),
+    url("/achtergrond-racket-ballen.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
 }
 
 /*
- * Herhaald padelbaan-schema als paginabreed achtergrondbeeld (29 juli 2026 —
- * feedback: eerst een abstract lijnenraster geprobeerd, bleek nog steeds "veel
- * te wit" aan te voelen; dit is de vervanging met echt herkenbare
- * baanbelijning i.p.v. een generiek grid). De illustratie
- * (/padelbaan-achtergrond.svg) is eigen werk — geen stockfoto, want dat zou
- * een licentie vergen. Een lichte gradient erbovenop houdt lopende tekst in
- * kaarten leesbaar; de baantegels blijven zichtbaar in de tussenruimtes.
- * Toegepast op <body>, dus elke pagina erft 'm.
+ * Paginabreed achtergrondbeeld (30 juli 2026) — Xander wilde een echte foto,
+ * "racket en bal close-up", expliciet "niet herhalen": één vaste,
+ * niet-getegelde foto i.p.v. het eerdere zelfgetekende SVG-lijnenpatroon
+ * (dat bleek nog steeds "te wit").
+ *
+ * public/achtergrond-racket-ballen.jpg — door Xander zelf aangeleverd
+ * (ChatGPT-gegenereerd onder zijn eigen account, expliciete toestemming voor
+ * gebruik gekregen 30 juli 2026) rechtstreeks in de public/-map gezet. Niet
+ * de eerder onderzochte Pexels-kandidaat — die galerij (6 vrije foto's,
+ * gepubliceerd als Artifact) stond klaar als terugvaloptie maar is niet
+ * gebruikt zodra dit bestand er was.
+ *
+ * Een lichte gradient erbovenop houdt lopende tekst in kaarten leesbaar.
+ * `background-attachment: fixed` + `background-size: cover` +
+ * `no-repeat` = precies één keer getoond, niet getegeld. Toegepast op
+ * <body>, dus elke pagina erft 'm.
  */
 .baan-achtergrond-licht {
   background-image:
-    linear-gradient(180deg, rgba(238, 252, 250, 0.88), rgba(238, 252, 250, 0.94)),
-    url("/padelbaan-achtergrond.svg");
-  background-size:
-    auto,
-    340px 170px;
-  background-repeat: no-repeat, repeat;
-  background-position: center, center;
-  background-attachment: fixed, fixed;
+    linear-gradient(180deg, rgba(238, 252, 250, 0.85), rgba(238, 252, 250, 0.93)),
+    url("/achtergrond-racket-ballen.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-attachment: fixed;
 }
 
 /*
- * Prominente, niet-herhaalde baanillustratie voor paginakoppen (bv. de Radar-
- * pagina, expliciet genoemd als "te wit" op 29 juli 2026) — dezelfde SVG als
- * hierboven, maar op volle grootte met een donkere overlay zodat witte tekst
- * er goed op leest. Dit is bewust een APARTE, opvallendere behandeling dan de
- * paginabrede tegel-achtergrond: één duidelijk zichtbare "baanfoto"-achtige
- * band bovenaan, in plaats van overal dezelfde subtiele textuur.
+ * Dezelfde foto, maar met een donkere overlay zodat witte tekst er goed op
+ * leest — voor paginakoppen (bv. de Radar-pagina, expliciet genoemd als "te
+ * wit" op 29 juli 2026). Ook hier: cover + no-repeat, geen tegels.
  */
 .baan-hero {
   background-image:
-    linear-gradient(160deg, rgba(7, 12, 11, 0.55), rgba(7, 12, 11, 0.88)),
-    url("/padelbaan-achtergrond.svg");
+    linear-gradient(160deg, rgba(7, 12, 11, 0.6), rgba(7, 12, 11, 0.88)),
+    url("/achtergrond-racket-ballen.jpg");
   background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
 }
 

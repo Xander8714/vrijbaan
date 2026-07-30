@@ -51,6 +51,9 @@ export type Profiel = {
   // Verenigingen waar de gebruiker lid is: onze club-id's en/of zelf getypte
   // namen van clubs die nog niet in de app staan.
   lidmaatschappen: string[];
+  // Genormaliseerd als +316XXXXXXXX (zie src/lib/telefoon.ts) — optioneel,
+  // voor toekomstige sms/WhatsApp-notificaties.
+  telefoon: string | null;
 };
 export type Player = { id: string; naam: string; speelsterkte: number; bondsnummer?: string; };
 export type Pair = { spelers: [Player, Player]; gemSterkte: number; };

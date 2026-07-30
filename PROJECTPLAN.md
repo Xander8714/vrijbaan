@@ -97,7 +97,26 @@ NL via het buren-netwerk. Denk aan seeds in andere regio's (Groningen,
 Limburg, Zeeland) waar het buren-netwerk mogelijk niet mee verbonden is, of
 een officiële clubdirectory als die ooit gevonden wordt.
 
-### Achtergronden: van vlak wit naar herkenbaar padelthema (29 juli 2026)
+### Achtergronden: echte foto i.p.v. zelfgetekende illustratie (30 juli 2026)
+Na de eerdere SVG-illustratie (hieronder) bleek Xander toch een echte foto te
+willen, "zoals ik ze aanleverde" — luxe uitstraling, geen mensen erop. Een
+galerij van 6 vrij te gebruiken kandidaten (Pexels License) gepubliceerd als
+Artifact zodat hij kon kiezen; eerste versie laadde niet (Artifacts blokkeren
+externe afbeeldingen via CSP), gefixt door de foto's als base64 in te bakken.
+
+**Gekozen: "racket en bal close-up", expliciet "niet herhalen".** Eerst een
+Pexels-kandidaat verwerkt (Critical Smith, Pexels License) als eerste poging.
+Xander zette daarna zelf een eigen ChatGPT-gegenereerde foto (twee rackets
+tegen het net + 2 ballen, indoor, rood/geel frame) rechtstreeks in
+`public/achtergrond-racket-ballen.jpg` — bestandsnaam kwam vrijwel letterlijk
+overeen met zijn eigen instructie, dus die is gebruikt i.p.v. de Pexels-foto
+(die weer verwijderd is, samen met de eerdere zelfgetekende SVG-illustratie).
+Toegepast via `background-size: cover; background-repeat: no-repeat` (geen
+tegels) op alle drie de achtergrondlagen: homepage-hero (`.baan-achtergrond`),
+paginabreed (`.baan-achtergrond-licht`, lichte overlay) en de Radar-paginakop
+(`.baan-hero`, donkere overlay). Live geverifieerd op homepage en Radar.
+
+### Achtergronden: van vlak wit naar herkenbaar padelthema (29 juli 2026, EERSTE poging — deels achterhaald door bovenstaande)
 Feedback van Xander tijdens het testen: de app oogde "veel te wit" buiten de
 donkere hero op de homepage. Eerste poging (een abstract CSS-lijnenraster)
 bleek nog steeds te subtiel; op expliciet verzoek om iets "zoals een

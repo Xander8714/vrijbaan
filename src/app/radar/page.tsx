@@ -5,7 +5,7 @@ import { CLUBS, LEDEN_CLUBS } from "@/lib/clubs";
 import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
-import { binnenStraal, type Coordinaat, type GevondenLocatie } from "@/lib/geo";
+import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
 import { binnenTijdvenster, dagLabel, komendeDagen } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
@@ -316,16 +316,6 @@ export default function RadarPage() {
     window.open(bestemming.url, "_blank", "noopener,noreferrer");
   };
 
-  const wisselLidmaatschap = (clubId: string) => {
-    setLidVan((vorige) => {
-      const volgende = new Set(vorige);
-      if (volgende.has(clubId)) volgende.delete(clubId);
-      else volgende.add(clubId);
-      window.localStorage.setItem(LID_SLEUTEL, JSON.stringify([...volgende]));
-      return volgende;
-    });
-  };
-
   const zichtbareClubs = useMemo(() => {
     return clubsInStraal
       .map((club) => {
@@ -445,29 +435,17 @@ export default function RadarPage() {
         )}
       </section>
 
-      {/* Ledenclubs: standaard verborgen, maar aan te vinken als je er lid bent. */}
-      {LEDEN_CLUBS.length > 0 && (
-        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="font-semibold text-slate-900">Ben je lid bij een vereniging?</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Bij deze clubs kun je alleen als lid boeken, dus we laten ze niet standaard zien. Vink aan waar je lid
-            bent — dan doen hun vrije banen wél mee in je lijst.
-          </p>
-          <ul className="mt-3 space-y-1">
-            {LEDEN_CLUBS.map((club) => (
-              <li key={club.id}>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
-                  <input type="checkbox" checked={lidVan.has(club.id)} onChange={() => wisselLidmaatschap(club.id)} />
-                  <span>{club.naam} <span className="text-slate-400">· {club.plaats}</span></span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-slate-400">
-            Dit onthouden we op dit apparaat. Ingelogd? Zet het in{" "}
-            <Link href="/account" className="underline">je account</Link> zodat het overal geldt.
-          </p>
-        </section>
+      {/* Ledenclubs: geen los toggle-blok meer hier — Xander (30 juli 2026):
+          "haal het stuk van ben je lid van een vereniging naar het account
+          tabblad, dat is de plek voor instellingen". lidVan wordt nu alleen
+          nog gelezen (uit localStorage + profiel.lidmaatschappen, zie de
+          init-effect hierboven), niet meer hier bewerkt. Wie een ledenclub
+          wil ontgrendelen, doet dat voortaan op /account. */}
+      {LEDEN_CLUBS.length > 0 && userId === null && (
+        <p className="mt-4 text-xs text-slate-400">
+          Lid van een vereniging? <Link href="/login" className="underline">Log in</Link> en zet het in je account
+          om hun vrije banen ook hier te zien.
+        </p>
       )}
 
       {/* Paneel na het klikken op een tijd: wat je op de site van de club nog
