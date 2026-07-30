@@ -1,6 +1,8 @@
 import crypto from "crypto";
 
-export type Slot = { startTime: string };
+// prijs is optioneel en telt niet mee voor de hash/diff (die kijkt alleen
+// naar startTime) — puur extra info om in een Telegram-bericht te tonen.
+export type Slot = { startTime: string; prijs?: string | null };
 
 /** Volgorde-onafhankelijke hash, zodat een andere renderingsvolgorde niet als wijziging telt. */
 export function hashSlots(slots: Slot[]): string {

@@ -32,11 +32,22 @@
  * 4. Sla de nieuwe stand op (dit is tegelijk de databron voor de Radar-pagina).
  *
  * Vereist: SUPABASE_SERVICE_ROLE_KEY + NEXT_PUBLIC_SUPABASE_URL (schrijven
- * gebeurt met de service-role key, buiten RLS om) en optioneel
- * TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (zonder deze wordt alleen gelogd).
- * ⚠️ Telegram is NIET end-to-end getest in deze sessie (bewuste keuze —
- * eerst de filtering werkend krijgen, Telegram-verificatie volgt vóór
- * uitrol). Zonder de env-vars faalt niets: er wordt dan alleen gelogd.
+ * gebeurt met de service-role key, buiten RLS om) en TELEGRAM_BOT_TOKEN
+ * (zonder deze wordt alleen gelogd, zie src/lib/telegram.ts).
+ *
+ * TELEGRAM-NOTIFICATIES ZIJN PER GEBRUIKER (30 juli 2026, Fase 1) — niet meer
+ * één vaste TELEGRAM_CHAT_ID. Elke gebruiker koppelt zijn eigen Telegram via
+ * de "Koppel Telegram"-knop op de Account-pagina (deep link + webhook, zie
+ * src/app/api/telegram/webhook). Bij een nieuw slot krijgt iedereen die de
+ * club volgt (gevolgde_clubs) én Telegram gekoppeld heeft
+ * (profiles.telegram_chat_id) één bericht met club + tijd(en) + prijs +
+ * boekingslink (zie bouwNotificatieBericht/stuurNotificatiesVoorClub).
+ * TELEGRAM_CHAT_ID blijft optioneel bestaan als vaste test-/adminchat die
+ * ALTIJD een kopie krijgt, los van wie er gekoppeld is.
+ *
+ * BEWUSTE SCOPE-KEUZE: dit hergebruikt "een club volgen" (gevolgde_clubs),
+ * niet de bredere zoekopdracht (locatie+straal+dag/tijd-voorkeur) uit de
+ * oorspronkelijke architectuurschets — dat is een latere fase.
  *
  * Gebruik:
  *   npx tsx scripts/poll-availability.ts              (gevolgd + rotatiebatch)
@@ -57,12 +68,16 @@ try {
 }
 
 import { scrapeMeetAndPlay } from "./scrape-meetandplay";
-import { scrapePlaytomic, uniekeStarttijden } from "./scrape-playtomic";
+import { scrapePlaytomic } from "./scrape-playtomic";
 import { fetchFoysAvailability } from "../src/lib/scrapers/foys";
 import { CLUBS } from "../src/lib/clubs";
+import type { Club } from "../src/lib/types";
 import { POLL_CONFIG } from "../src/lib/pollConfig";
 import { supabaseAdmin } from "../src/lib/supabase/admin";
 import { hashSlots, nieuweSlotenSinds, type Slot } from "../src/lib/availabilityDiff";
+import { boekingsBestemming } from "../src/lib/boekingsLink";
+import { formatEuro } from "../src/lib/geld";
+import { stuurTelegramBericht } from "../src/lib/telegram";
 
 const DAGEN_VOORUIT = 3; // vandaag + 2 dagen — genoeg voor een zinvolle radar zonder overbodig te pollen
 
@@ -111,6 +126,72 @@ async function haalGevolgdeClubIds(): Promise<Set<string>> {
 }
 
 /**
+ * Telegram-chat_id's per club, alleen voor gebruikers die (a) de club volgen
+ * én (b) Telegram gekoppeld hebben (profiles.telegram_chat_id). Twee losse,
+ * simpele selects + een in-memory join i.p.v. een PostgREST-embed — minder
+ * kans op een subtiele foute join-syntax, en beide tabellen zijn klein.
+ */
+async function haalVolgersPerClub(): Promise<Map<string, number[]>> {
+  const supabase = supabaseAdmin();
+  const [{ data: gekoppeldeProfielen, error: profielFout }, { data: volgend, error: volgFout }] = await Promise.all([
+    supabase.from("profiles").select("id, telegram_chat_id").not("telegram_chat_id", "is", null),
+    supabase.from("gevolgde_clubs").select("user_id, club_id"),
+  ]);
+  if (profielFout || volgFout) {
+    console.error(
+      "[telegram] Kon volgers per club niet ophalen — notificaties worden deze ronde overgeslagen:",
+      (profielFout ?? volgFout)?.message
+    );
+    return new Map();
+  }
+  const chatIdPerGebruiker = new Map(
+    (gekoppeldeProfielen ?? []).map((p) => [p.id as string, p.telegram_chat_id as number])
+  );
+  const kaart = new Map<string, number[]>();
+  for (const rij of volgend ?? []) {
+    const chatId = chatIdPerGebruiker.get(rij.user_id as string);
+    if (chatId === undefined) continue;
+    const lijst = kaart.get(rij.club_id as string) ?? [];
+    lijst.push(chatId);
+    kaart.set(rij.club_id as string, lijst);
+  }
+  return kaart;
+}
+
+/** Club + tijd(en) + prijs + boekingslink — zoals afgesproken (30 juli 2026) voor het eerste bericht. */
+function bouwNotificatieBericht(club: Club | undefined, clubId: string, datum: string, nieuweSloten: Slot[]): string {
+  const naam = club?.naam ?? clubId;
+  const gesorteerd = [...nieuweSloten].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const regels = gesorteerd.map((s) => (s.prijs ? `${s.startTime} — ${s.prijs}` : s.startTime)).join("\n");
+  const bestemming = club ? boekingsBestemming(club, datum, gesorteerd[0].startTime) : null;
+  const linkRegel = bestemming ? `\n\n${bestemming.url}` : "";
+  return `${naam} — nieuwe padel-plek(ken) op ${datum}:\n${regels}${linkRegel}`;
+}
+
+/**
+ * Stuurt één bericht (per club/dag, met alle nieuwe sloten gebundeld — geen
+ * los bericht per slot) naar elke gekoppelde volger, plus optioneel naar
+ * TELEGRAM_CHAT_ID als vaste test-/adminchat.
+ */
+async function stuurNotificatiesVoorClub(
+  club: Club | undefined,
+  clubId: string,
+  datum: string,
+  nieuweSloten: Slot[],
+  volgersPerClub: Map<string, number[]>
+): Promise<void> {
+  const chatIds = new Set(volgersPerClub.get(clubId) ?? []);
+  const adminChat = Number(process.env.TELEGRAM_CHAT_ID);
+  if (process.env.TELEGRAM_CHAT_ID && Number.isFinite(adminChat)) chatIds.add(adminChat);
+  if (chatIds.size === 0) return;
+
+  const bericht = bouwNotificatieBericht(club, clubId, datum, nieuweSloten);
+  for (const chatId of chatIds) {
+    await stuurTelegramBericht(chatId, bericht);
+  }
+}
+
+/**
  * Kiest een tijdgebaseerd roterend blok uit de niet-gevolgde, wél pollbare
  * clubs. Geen persistente cursor: het blok volgt puur uit de huidige tijd,
  * dus opeenvolgende runs (elke ~5-10 min, extern gepland) schuiven vanzelf
@@ -126,40 +207,50 @@ export function kiesRotatieBatch(nietGevolgdPollbaar: string[], nu: Date = new D
   return gesorteerd.slice(start, start + ROTATIE_GROOTTE);
 }
 
-async function stuurTelegramBericht(tekst: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) {
-    console.warn("[telegram] TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID niet gezet — alleen loggen:", tekst);
-    return;
-  }
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: tekst }),
-  });
-  if (!res.ok) {
-    console.error("[telegram] Notificatie mislukt:", res.status, await res.text());
-  }
-}
-
 async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
   const bron = POLL_CONFIG[clubId];
   switch (bron.type) {
     case "meetandplay":
-      return (await scrapeMeetAndPlay(bron.meetAndPlayClubId, datum)).slots;
-    case "playtomic":
-      return uniekeStarttijden(await scrapePlaytomic(bron.slug, datum));
+      // Nog geen prijs beschikbaar voor Meet & Play, zie src/app/api/beschikbaarheid/route.ts.
+      return (await scrapeMeetAndPlay(bron.meetAndPlayClubId, datum)).slots.map((s) => ({
+        startTime: s.startTime,
+        prijs: null,
+      }));
+    case "playtomic": {
+      // Niet uniekeStarttijden() gebruiken: die gooit de prijs weg. Zelfde
+      // dedup-per-starttijd, maar met de prijs van de eerste optie die er een heeft.
+      const resultaat = await scrapePlaytomic(bron.slug, datum);
+      const prijsPerTijd = new Map<string, string | null>();
+      for (const s of resultaat.slots) {
+        if (!prijsPerTijd.has(s.startTime) || (!prijsPerTijd.get(s.startTime) && s.prijs)) {
+          prijsPerTijd.set(s.startTime, s.prijs);
+        }
+      }
+      return [...prijsPerTijd.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([startTime, prijs]) => ({ startTime, prijs }));
+    }
     case "foys": {
-      const sloten = await fetchFoysAvailability(bron.locationId, datum);
-      // Meerdere speelduren delen dezelfde starttijd; voor de radar telt de
-      // starttijd, dus dubbelen eruit.
-      return [...new Set(sloten.map((s) => s.startTime))].sort().map((startTime) => ({ startTime }));
+      // Meerdere speelduren delen dezelfde starttijd; net als de radar tonen
+      // we de 60-minuten-prijs als die er is, anders de goedkoopste optie.
+      const alleOpties = await fetchFoysAvailability(bron.locationId, datum);
+      const perTijd = new Map<string, typeof alleOpties>();
+      for (const optie of alleOpties) {
+        const lijst = perTijd.get(optie.startTime) ?? [];
+        lijst.push(optie);
+        perTijd.set(optie.startTime, lijst);
+      }
+      return [...perTijd.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([startTime, opties]) => {
+          const gekozen = opties.find((o) => o.duurMinuten === 60) ?? opties.reduce((a, b) => (a.prijs <= b.prijs ? a : b));
+          return { startTime, prijs: formatEuro(gekozen.prijs) };
+        });
     }
   }
 }
 
-async function pollEenClubEnDag(clubId: string, datum: string): Promise<void> {
+async function pollEenClubEnDag(clubId: string, datum: string, volgersPerClub: Map<string, number[]>): Promise<void> {
   const club = CLUBS.find((c) => c.id === clubId);
   const supabase = supabaseAdmin();
 
@@ -205,9 +296,7 @@ async function pollEenClubEnDag(clubId: string, datum: string): Promise<void> {
   if (nieuweSloten.length > 0) {
     const tijden = nieuweSloten.map((s) => s.startTime).sort().join(", ");
     console.log(`[${clubId} ${datum}] nieuwe sloten: ${tijden}`);
-    await stuurTelegramBericht(
-      `Nieuwe padel-sloten bij ${club?.naam ?? clubId} op ${datum}: ${tijden}`
-    );
+    await stuurNotificatiesVoorClub(club, clubId, datum, nieuweSloten, volgersPerClub);
   } else {
     console.log(`[${clubId} ${datum}] stand bijgewerkt (geen nieuwe sloten, wel wijziging — bv. iets geboekt).`);
   }
@@ -241,9 +330,13 @@ async function main(): Promise<void> {
     );
   }
 
+  const volgersPerClub = await haalVolgersPerClub();
+  const totaalVolgers = new Set([...volgersPerClub.values()].flat()).size;
+  console.log(`[telegram] ${totaalVolgers} gebruiker(s) met Telegram gekoppeld, verspreid over ${volgersPerClub.size} club(s).`);
+
   for (const clubId of teVerwerken) {
     for (const datum of dagen) {
-      await pollEenClubEnDag(clubId, datum);
+      await pollEenClubEnDag(clubId, datum, volgersPerClub);
       await pauzeerVoorPlaytomic(clubId);
     }
   }

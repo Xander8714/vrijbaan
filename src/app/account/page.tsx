@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Profiel } from "@/lib/types";
 import ProfielFormulier from "./ProfielFormulier";
+import TelegramKoppelen from "./TelegramKoppelen";
 
 export default async function AccountPage() {
   const supabase = await supabaseServer();
@@ -12,7 +13,7 @@ export default async function AccountPage() {
   const { data: rij } = await supabase
     .from("profiles")
     .select(
-      "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, telefoon"
+      "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, telefoon, telegram_chat_id"
     )
     .eq("id", user.id)
     .single();
@@ -62,6 +63,10 @@ export default async function AccountPage() {
       </div>
 
       <ProfielFormulier userId={user.id} beginProfiel={profiel} />
+
+      <div className="mt-6">
+        <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} />
+      </div>
 
       <p className="mt-8 text-xs text-slate-400">
         Je adres wordt alleen gebruikt om clubs binnen je zoekstraal te vinden. Wil je dat niet, laat de

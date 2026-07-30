@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { POLL_CONFIG } from "@/lib/pollConfig";
 import { fetchFoysAvailability } from "@/lib/scrapers/foys";
+import { formatEuro } from "@/lib/geld";
 
 /**
  * Beschikbaarheid op aanvraag: alleen voor de clubs die de gebruiker ná
@@ -53,10 +54,6 @@ function alleenToekomstig(sloten: Slot[], datum: string, nu: Date = new Date()):
     if (!Number.isFinite(u) || !Number.isFinite(m)) return false;
     return u * 60 + m > minutenNu;
   });
-}
-
-function formatEuro(bedrag: number): string {
-  return `€ ${bedrag.toFixed(2).replace(".", ",")}`;
 }
 
 export type ClubBeschikbaarheid = {
