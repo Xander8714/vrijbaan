@@ -79,6 +79,24 @@ hiermee **één product: de beschikbaarheid-radar.**
 Alle drie de aanbieders (Playtomic, Foys, Meet & Play) leveren dus in één run
 echte data. Dit is de eerste keer dat dat aantoonbaar is.
 
+### Playtomic-crawl afgerond: 95 clubs is het bevestigde plafond (29 juli 2026)
+Na de 403-fix een crawl van 300 pagina's gedraaid: slechts 95 nieuwe clubs
+(was 82), met 205 verspilde bezoeken — de crawl liep door tot in Duitsland/
+België/Frankrijk (Playtomic's "clubs in de buurt"-links kennen geen
+landsgrens) en de NL-specifieke adres-regex vindt daar nooit een match.
+Gefixt: buren van een club zonder gevonden NL-adres worden niet meer in de
+wachtrij gezet. **Rerun met dezelfde 2 seeds gaf opnieuw exact 95 clubs, en
+dit keer liep de wachtrij vanzelf leeg (163 van de 200 pagina's bezocht) i.p.v.
+tegen het maximum te lopen.** Dat is het bewijs dat 95 het echte plafond is
+voor deze crawl-methode, geen budget-limiet. Totaal nu **514 clubs** (392
+Meet & Play, 96 Playtomic incl. WePadel/PADEL25, 26 Foys).
+
+Om hier ooit voorbij te komen is een ander startpunt nodig — deze 2 seeds
+(WePadel Haarlem, PADEL25) leiden kennelijk niet naar elke Playtomic-club in
+NL via het buren-netwerk. Denk aan seeds in andere regio's (Groningen,
+Limburg, Zeeland) waar het buren-netwerk mogelijk niet mee verbonden is, of
+een officiële clubdirectory als die ooit gevonden wordt.
+
 ### Achtergronden: van vlak wit naar herkenbaar padelthema (29 juli 2026)
 Feedback van Xander tijdens het testen: de app oogde "veel te wit" buiten de
 donkere hero op de homepage. Eerste poging (een abstract CSS-lijnenraster)

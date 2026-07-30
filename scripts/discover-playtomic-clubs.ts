@@ -162,13 +162,25 @@ async function main(): Promise<void> {
       }
       if (!ruw) { overgeslagen.push(`${slug} (pagina niet geladen)`); continue; }
 
-      for (const buur of ruw.buren) if (!bezocht.has(buur)) tebezoeken.push(buur);
-
       // Nette pauze tussen clubs — zelfde redenering als pauzeerVoorPlaytomic
       // in scripts/poll-availability.ts.
       await page.waitForTimeout(1000 + Math.random() * 1500);
 
-      if (!ruw.adres) { overgeslagen.push(`${ruw.slug} (geen adres in pagina)`); continue; }
+      if (!ruw.adres) {
+        // Alleen NL-adressen doorgeven aan ADRES_RE (postcode-formaat "1234 AB"),
+        // dus dit is vrijwel altijd een buitenlandse club (bevestigd 29 juli
+        // 2026: Playtomic's "clubs in de buurt"-links kennen geen landsgrens —
+        // een crawl van 300 pagina's liep na ~95 NL-clubs door naar Duitsland/
+        // België/Frankrijk, met 205 nutteloze bezoeken tot gevolg). Diens buren
+        // dus NIET meer in de wachtrij zetten — dat voorkomt dat de crawl zich
+        // verder het buitenland in graaft. Een club MET adres maar waarvan het
+        // adres niet geocodeerbaar bleek (verderop) telt dus wel als "binnen NL,
+        // buren de moeite waard".
+        overgeslagen.push(`${ruw.slug} (geen adres in pagina — vermoedelijk buiten NL)`);
+        continue;
+      }
+
+      for (const buur of ruw.buren) if (!bezocht.has(buur)) tebezoeken.push(buur);
       const punt = await geocodeer(ruw.adres);
       if (!punt) { overgeslagen.push(`${ruw.slug} (adres "${ruw.adres}" niet te geocoderen)`); continue; }
 
