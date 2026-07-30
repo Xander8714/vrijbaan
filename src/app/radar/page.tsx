@@ -44,8 +44,16 @@ export default function RadarPage() {
   const [opgehaaldOp, setOpgehaaldOp] = useState<string | null>(null);
 
   const dagen = useMemo(() => komendeDagen(), []);
-  const [gekozenDatum, setGekozenDatum] = useState(dagen[0]);
-  const [voorkeurstijd, setVoorkeurstijd] = useState("");
+  // Standaard actuele tijd ± 2 uur — Xander (30 juli 2026): "pak altijd de
+  // actuele tijd, behalve als het later is dan 21 uur, want dan is de
+  // persoon op zoek naar de volgende dag". Beide zijn lazy useState-
+  // initializers: ze lezen `new Date()` precies één keer, bij het laden van
+  // de pagina, niet bij elke render.
+  const [gekozenDatum, setGekozenDatum] = useState(() => (new Date().getHours() >= 21 ? dagen[1] : dagen[0]));
+  const [voorkeurstijd, setVoorkeurstijd] = useState(() => {
+    const nu = new Date();
+    return `${String(nu.getHours()).padStart(2, "0")}:${String(nu.getMinutes()).padStart(2, "0")}`;
+  });
   const [margeUren, setMargeUren] = useState(2);
 
   const [zoekgebied, setZoekgebied] = useState<Zoekgebied | null>(null);
@@ -72,6 +80,57 @@ export default function RadarPage() {
   // Clubs waar de gebruiker zelf lid is. Alleen die ledenclubs doen mee in de
   // lijst — voor een lid zijn hun vrije banen namelijk wél bruikbaar.
   const [lidVan, setLidVan] = useState<Set<string>>(new Set());
+
+  /**
+   * Locatie bepalen zonder externe dienst of API-key: de Geolocation API van
+   * de browser zelf (een webstandaard, vraagt de gebruiker om toestemming) en
+   * PDOK om er een plaatsnaam bij te zoeken. Geen IP-lookup-dienst van derden,
+   * dus er gaat geen verzoek met het IP van de gebruiker naar een tracker.
+   *
+   * enableHighAccuracy staat bewust UIT: we willen een globale plek om een
+   * straal vanaf te rekenen, geen exacte positie — dat is sneller, spaart accu
+   * en is privacyvriendelijker.
+   *
+   * Staat bewust VÓÓR de init-useEffect hieronder (i.p.v. bij de andere
+   * locatiefuncties verderop): die effect roept 'm automatisch aan als er nog
+   * geen locatie bekend is, en een const-functie moet al gedeclareerd zijn
+   * vóór een eerdere closure 'm mag gebruiken (geen hoisting bij const).
+   */
+  const gebruikMijnLocatie = () => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setLocatieFout("Je browser ondersteunt automatische locatiebepaling niet. Zoek hierboven je plaats op.");
+      return;
+    }
+    setLocatieBezig(true);
+    setLocatieFout(null);
+    navigator.geolocation.getCurrentPosition(
+      async (positie) => {
+        const { latitude, longitude } = positie.coords;
+        let plaatsnaam = "je huidige omgeving";
+        try {
+          const res = await fetch(`/api/plaatsen-in-buurt?lat=${latitude}&lon=${longitude}&straal=30`);
+          const data = await res.json();
+          if (res.ok && data.plaatsen?.length > 0) plaatsnaam = data.plaatsen[0].woonplaatsnaam;
+        } catch {
+          // Zonder naam is de locatie nog steeds bruikbaar om op te rekenen.
+        }
+        const nieuw: Zoekgebied = { lat: latitude, lon: longitude, plaatsnaam, straalKm };
+        setZoekgebied(nieuw);
+        setNegeerStraal(false);
+        window.localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(nieuw));
+        setLocatieBezig(false);
+      },
+      (fout) => {
+        setLocatieFout(
+          fout.code === fout.PERMISSION_DENIED
+            ? "Je hebt geen toestemming gegeven. Zoek hierboven je plaats op."
+            : "Je locatie kon niet bepaald worden. Zoek hierboven je plaats op."
+        );
+        setLocatieBezig(false);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 }
+    );
+  };
 
   useEffect(() => {
     // Alles wordt hier ná een await gezet: het profiel in de database gaat vóór
@@ -105,7 +164,13 @@ export default function RadarPage() {
       if (lidmaatschappen.length > 0) setLidVan(new Set(lidmaatschappen));
 
       if (!user) {
+        // Xander (30 juli 2026): "de locatie ±10km als iemand online komt,
+        // zodat de banen al geladen worden ipv wachten" — bewust NIET
+        // awaiten: dit start de (async) browser-geolocatie op de achtergrond,
+        // de rest van de pagina hoeft daar niet op te wachten. Alleen als er
+        // nog geen locatie bekend is; een bewaard zoekgebied wint altijd.
         if (uitOpslag) { setZoekgebied(uitOpslag); setStraalKm(uitOpslag.straalKm); }
+        else gebruikMijnLocatie();
         setLaden(false);
         return;
       }
@@ -141,6 +206,7 @@ export default function RadarPage() {
           : null;
       const gekozen = uitProfiel ?? uitOpslag;
       if (gekozen) { setZoekgebied(gekozen); setStraalKm(gekozen.straalKm); }
+      else gebruikMijnLocatie(); // idem: automatisch laden i.p.v. wachten op een klik
       setLaden(false);
     };
 
@@ -206,52 +272,6 @@ export default function RadarPage() {
     return () => { afgebroken = true; };
   }, [clubsInStraal, gekozenDatum]);
 
-
-  /**
-   * Locatie bepalen zonder externe dienst of API-key: de Geolocation API van
-   * de browser zelf (een webstandaard, vraagt de gebruiker om toestemming) en
-   * PDOK om er een plaatsnaam bij te zoeken. Geen IP-lookup-dienst van derden,
-   * dus er gaat geen verzoek met het IP van de gebruiker naar een tracker.
-   *
-   * enableHighAccuracy staat bewust UIT: we willen een globale plek om een
-   * straal vanaf te rekenen, geen exacte positie — dat is sneller, spaart accu
-   * en is privacyvriendelijker.
-   */
-  const gebruikMijnLocatie = () => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
-      setLocatieFout("Je browser ondersteunt automatische locatiebepaling niet. Zoek hierboven je plaats op.");
-      return;
-    }
-    setLocatieBezig(true);
-    setLocatieFout(null);
-    navigator.geolocation.getCurrentPosition(
-      async (positie) => {
-        const { latitude, longitude } = positie.coords;
-        let plaatsnaam = "je huidige omgeving";
-        try {
-          const res = await fetch(`/api/plaatsen-in-buurt?lat=${latitude}&lon=${longitude}&straal=30`);
-          const data = await res.json();
-          if (res.ok && data.plaatsen?.length > 0) plaatsnaam = data.plaatsen[0].woonplaatsnaam;
-        } catch {
-          // Zonder naam is de locatie nog steeds bruikbaar om op te rekenen.
-        }
-        const nieuw: Zoekgebied = { lat: latitude, lon: longitude, plaatsnaam, straalKm };
-        setZoekgebied(nieuw);
-        setNegeerStraal(false);
-        window.localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(nieuw));
-        setLocatieBezig(false);
-      },
-      (fout) => {
-        setLocatieFout(
-          fout.code === fout.PERMISSION_DENIED
-            ? "Je hebt geen toestemming gegeven. Zoek hierboven je plaats op."
-            : "Je locatie kon niet bepaald worden. Zoek hierboven je plaats op."
-        );
-        setLocatieBezig(false);
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 }
-    );
-  };
 
   const kiesLocatie = (loc: GevondenLocatie) => {
     const nieuw: Zoekgebied = { lat: loc.lat, lon: loc.lon, plaatsnaam: loc.woonplaatsnaam ?? loc.weergavenaam, straalKm };

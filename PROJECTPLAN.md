@@ -97,6 +97,24 @@ NL via het buren-netwerk. Denk aan seeds in andere regio's (Groningen,
 Limburg, Zeeland) waar het buren-netwerk mogelijk niet mee verbonden is, of
 een officiële clubdirectory als die ooit gevonden wordt.
 
+### Radar: slimme standaardwaarden i.p.v. lege filters (30 juli 2026)
+Op verzoek: de Radar vult voortaan zelf een zinvolle eerste weergave in i.p.v.
+een lege staat waarin je eerst zelf alles moet instellen.
+- **Voorkeurstijd + marge**: standaard de actuele kloktijd, ± 2 uur (was
+  altijd leeg). Na 21:00 uur springt de standaard-dag automatisch naar
+  "Morgen" i.p.v. "Vandaag" — wie 's avonds laat zoekt, zoekt meestal voor
+  morgen, niet voor de paar restminuten van vandaag.
+- **Locatie**: als er nog geen bewaarde locatie bekend is (geen profiel, geen
+  localStorage), wordt automatisch de browser-geolocatie aangeroepen zodra de
+  pagina laadt — niet meer wachten tot iemand zelf op "Gebruik mijn locatie"
+  klikt. Straal blijft standaard 10 km (stond al zo in de code).
+- Live geverifieerd om 22:56 uur: "Morgen" + "22:57" + "10 km" stonden meteen
+  goed bij het laden.
+
+`gebruikMijnLocatie` is verplaatst naar vóór de init-`useEffect` (was erna) —
+puur een verplaatsing, geen gedragswijziging: een `const`-functie moet al
+gedeclareerd zijn vóór een eerdere closure 'm mag aanroepen.
+
 ### Achtergronden: echte foto i.p.v. zelfgetekende illustratie (30 juli 2026)
 Na de eerdere SVG-illustratie (hieronder) bleek Xander toch een echte foto te
 willen, "zoals ik ze aanleverde" — luxe uitstraling, geen mensen erop. Een
