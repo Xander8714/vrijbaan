@@ -129,8 +129,15 @@ async function inBatches(clubIds: string[], datum: string): Promise<ClubBeschikb
           return { clubId, sloten: alleenToekomstig(await slotenVoorClub(clubId, datum), datum) };
         } catch (err) {
           // Eén kapotte bron mag de rest niet meesleuren: de club komt terug
-          // met een foutmelding in plaats van stil te verdwijnen.
-          return { clubId, sloten: [], fout: (err as Error).message };
+          // met een foutmelding in plaats van stil te verdwijnen. De ECHTE
+          // foutmelding (bv. een rauwe Playwright-timeout als
+          // "page.waitForResponse: Timeout 10000ms exceeded...", gezien bij
+          // Groeneveen op 30 juli 2026) gaat naar de server-log, niet naar de
+          // gebruiker — die heeft niets aan interne technische details en
+          // kan er toch niets mee. Xander: "zeg dan geen tijden geladen,
+          // refresh de pagina om opnieuw te proberen".
+          console.error(`[beschikbaarheid] ${clubId} (${datum}) mislukt:`, (err as Error).message);
+          return { clubId, sloten: [], fout: "Geen tijden geladen. Ververs de pagina om opnieuw te proberen." };
         }
       })
     );
