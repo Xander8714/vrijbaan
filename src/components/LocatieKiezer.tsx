@@ -65,7 +65,15 @@ export default function LocatieKiezer({
   // maar dan willen we NIET opnieuw zoeken — dat voorkomt een overbodige
   // aanvraag én laat de suggestielijst na een keuze meteen dicht blijven.
   const overslaanVolgendeZoekactie = useRef(false);
+  // Zonder deze guard vuurt het effect ook bij de EERSTE render (React doet
+  // dat altijd, ongeacht de dependency-array) — met een al opgeslagen
+  // woonplaats als beginwaarde ging de pagina dus bij elke page-load meteen
+  // een PDOK-zoekopdracht draaien en de suggestielijst tonen, alsof er nog
+  // niets gekozen was. Bevestigd door Xander (31 juli 2026): "zodra ik de
+  // site opnieuw open gaat die weer zoeken naar overeenkomsten van Haarlem".
+  const eersteRender = useRef(true);
   useEffect(() => {
+    if (eersteRender.current) { eersteRender.current = false; return; }
     if (overslaanVolgendeZoekactie.current) { overslaanVolgendeZoekactie.current = false; return; }
     // setState-aanroepen staan bewust NIET rechtstreeks in het effect-lichaam
     // (react-hooks/set-state-in-effect) — via setTimeout(…, 0) i.p.v.
