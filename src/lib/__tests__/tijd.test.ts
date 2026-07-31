@@ -48,6 +48,10 @@ describe("komendeDagen", () => {
     expect(komendeDagen(3, new Date(2026, 6, 29))).toEqual(["2026-07-29", "2026-07-30", "2026-07-31"]);
   });
 
+  it("gebruikt standaard een week vooruit (DAGEN_VOORUIT)", () => {
+    expect(komendeDagen(undefined, new Date(2026, 6, 29))).toHaveLength(7);
+  });
+
   it("rolt netjes over een maandgrens", () => {
     expect(komendeDagen(3, new Date(2026, 6, 30))).toEqual(["2026-07-30", "2026-07-31", "2026-08-01"]);
   });

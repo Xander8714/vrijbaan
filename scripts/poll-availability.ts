@@ -79,7 +79,13 @@ import { boekingsBestemming } from "../src/lib/boekingsLink";
 import { formatEuro } from "../src/lib/geld";
 import { stuurTelegramBericht } from "../src/lib/telegram";
 
-const DAGEN_VOORUIT = 3; // vandaag + 2 dagen — genoeg voor een zinvolle radar zonder overbodig te pollen
+// Vandaag + 2 dagen. Bewust LOSSE, kleinere constante van src/lib/tijd.ts se
+// DAGEN_VOORUIT (die is 31 juli 2026 naar 7 opgehoogd voor de Radar-weergave)
+// — zie de uitgebreide toelichting daar waarom een langer pollvenster hier
+// weinig oplevert (vrijgekomen plekken door annulering gebeuren vrijwel
+// altijd kort vóór de speeldag) terwijl het wél evenredig meer Playwright-
+// runs kost.
+const DAGEN_VOORUIT = 3;
 
 // Hoeveel niet-gevolgde clubs per ronde extra meegenomen worden, naast alle
 // gevolgde clubs. Bij ~15-20s per Playtomic/Meet & Play-club houdt dit een

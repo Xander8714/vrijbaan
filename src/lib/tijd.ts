@@ -7,8 +7,29 @@
  * functies is het te testen zonder een browser.
  */
 
-/** Aantal dagen dat de radar vooruit kijkt: vandaag, morgen, overmorgen. */
-export const DAGEN_VOORUIT = 3;
+/**
+ * Aantal dagen dat de Radar vooruit kijkt (vandaag t/m 6 dagen later — een
+ * week). Was 3 (vandaag/morgen/overmorgen); opgehoogd 31 juli 2026 op
+ * verzoek van Xander ("ook een week vooruit kunnen boeken"), onderbouwd met
+ * onderzoek naar gangbare boekvensters: Playtomic-clubs zetten hun agenda
+ * doorgaans 7-14 dagen vooruit open (bv. Apeldoorn Padel, Deventer Padel:
+ * 14 dagen; Padeldam: 21 dagen), en de industrienorm voor "ver genoeg om een
+ * weekend te plannen, niet zo ver dat het merendeel nog leeg/onzeker is" ligt
+ * rond de 7-14 dagen. 7 is de conservatieve keuze — ruim genoeg voor een
+ * week vooruit boeken, zonder een agenda te suggereren die verder reikt dan
+ * onze eigen bronnen (Meet & Play, Foys) doorgaans al open hebben staan.
+ *
+ * Dit is UITSLUITEND het live-opgehaalde venster op de Radar-pagina
+ * (/api/beschikbaarheid, on-demand per bezoek — geen extra doorlopende
+ * kosten). De achtergrond-poller (scripts/poll-availability.ts, voor
+ * Telegram-notificaties) heeft een EIGEN, kleinere DAGEN_VOORUIT en is
+ * bewust NIET meegehoogd: een notificatie is pas nuttig bij een vrijgekomen
+ * plek (annulering), en die gebeuren vrijwel altijd kort vóór de speeldag —
+ * ver-vooruit-dagen zijn bij de eerste meting al vol of leeg en leveren dus
+ * zelden een "nieuw vrijgekomen slot"-notificatie op, terwijl elke extra dag
+ * wél een volledige Playwright-run per club kost (zie de docstring daar).
+ */
+export const DAGEN_VOORUIT = 7;
 
 const TIJD_RE = /^(\d{1,2}):(\d{2})$/;
 

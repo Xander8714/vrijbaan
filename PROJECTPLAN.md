@@ -329,6 +329,42 @@ als de browser al een actieve MijnKNLTB-sessie heeft (cookies gedeeld op
 sessie. De Playwright-scraper in `src/lib/scrapers/knltb.ts` draait in een
 eigen geïsoleerde browsercontext en heeft hier geen last van.
 
+### Telegram-notificaties live (31 juli 2026) — de eerdere "niet end-to-end
+getest"-notitie hieronder (§8, §11) is hiermee **achterhaald**. Fase 1
+(per-gebruiker koppeling via `gevolgde_clubs`, niet de volledige
+locatie+straal-zoekopdracht) staat in productie: migratie toegepast,
+webhook (`/api/telegram/webhook`) end-to-end bevestigd tegen de live
+database, env vars + webhook geregistreerd bij `@vrijbaan_notify_bot`. Zie
+[account/TelegramKoppelen.tsx](../src/app/account/TelegramKoppelen.tsx) en
+[scripts/poll-availability.ts](../scripts/poll-availability.ts). Nog open:
+Xander moet zelf nog de koppeling in productie afronden (inloggen kan een
+assistent niet namens hem doen); de volledige zoekopdracht-architectuur
+(§3) is nog niet gebouwd.
+
+**Bug gefixt (31 juli 2026) — LocatieKiezer zocht opnieuw bij elke
+page-load:** met een al opgeslagen woonplaats als beginwaarde vuurde het
+zoek-effect ook op de eerste render, en een "sla de eerste keer over"-ref
+werkt daar niet betrouwbaar voor — React's StrictMode (dev) roept een
+mount-effect bewust twee keer aan, wat de vlag al omklapte vóór de tweede,
+echte run. Bevestigd doordat Xander het zag gebeuren terwijl een eerste,
+te snelle verificatie het miste. Fix: een `gebruikerTypt`-ref die
+uitsluitend in de echte onChange-handler op true gaat, nooit in het
+mount-effect zelf (zie [LocatieKiezer.tsx](../src/components/LocatieKiezer.tsx)).
+
+**Radar toont nu een week vooruit i.p.v. 3 dagen (31 juli 2026):**
+`DAGEN_VOORUIT` in [src/lib/tijd.ts](../src/lib/tijd.ts) van 3 naar 7,
+op verzoek van Xander ("ook een week vooruit kunnen boeken"). Onderbouwd
+met kort onderzoek: Playtomic-clubs zetten hun boekingskalender doorgaans
+7-14 dagen vooruit open (Apeldoorn Padel en Deventer Padel: 14 dagen,
+Padeldam: 21 dagen — bronnen: de FAQ-pagina's van die clubs), dus 7 dagen
+is een conservatieve, veilige ondergrens. Dit raakt alleen de **live**
+Radar-weergave (`/api/beschikbaarheid`, on-demand per bezoek); de
+achtergrond-poller (`scripts/poll-availability.ts`, voor
+Telegram-notificaties) is bewust op 3 dagen blijven staan — een
+vrijgekomen plek door annulering gebeurt vrijwel altijd kort vóór de
+speeldag, dus een langer polvenster kost evenredig meer Playwright-runs
+zonder navenant meer notificaties op te leveren.
+
 ---
 
 ## 1. Het probleem

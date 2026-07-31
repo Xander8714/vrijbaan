@@ -367,7 +367,7 @@ export default function RadarPage() {
       <div className="baan-hero -mx-6 rounded-b-2xl px-6 py-10 sm:px-8">
         <h1 className="text-3xl font-bold text-white">Beschikbaarheid Radar</h1>
         <p className="mt-2 text-slate-300">
-          Kies waar je woont, stel je straal in en kijk tot 48 uur vooruit. Volg een club en krijg een melding
+          Kies waar je woont, stel je straal in en kijk tot een week vooruit. Volg een club en krijg een melding
           zodra er een baan vrijkomt.
         </p>
       </div>
