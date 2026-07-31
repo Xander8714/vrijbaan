@@ -60,21 +60,22 @@ export default function LocatieKiezer({
     }
   };
 
-  // Live zoeken: elke wijziging aan `term` plant een nieuwe, gedebounced
-  // zoekopdracht. Bij het kiezen van een resultaat zetten we `term` ook,
-  // maar dan willen we NIET opnieuw zoeken — dat voorkomt een overbodige
-  // aanvraag én laat de suggestielijst na een keuze meteen dicht blijven.
-  const overslaanVolgendeZoekactie = useRef(false);
-  // Zonder deze guard vuurt het effect ook bij de EERSTE render (React doet
-  // dat altijd, ongeacht de dependency-array) — met een al opgeslagen
-  // woonplaats als beginwaarde ging de pagina dus bij elke page-load meteen
-  // een PDOK-zoekopdracht draaien en de suggestielijst tonen, alsof er nog
-  // niets gekozen was. Bevestigd door Xander (31 juli 2026): "zodra ik de
-  // site opnieuw open gaat die weer zoeken naar overeenkomsten van Haarlem".
-  const eersteRender = useRef(true);
+  // Alleen zoeken als de gebruiker ook echt heeft GETYPT — niet bij de
+  // beginwaarde (een al opgeslagen woonplaats) en niet na het kiezen van een
+  // suggestie (die zet `term` ook, maar moet de lijst juist laten sluiten).
+  //
+  // Bewust GEEN "sla de eerste render over"-vlag die na één keer voorgoed
+  // omklapt: React's StrictMode (dev-only) roept een mount-effect twee keer
+  // aan om precies dit soort niet-idempotente code te ontdekken — de vlag
+  // stond na de eerste (overgeslagen) run al om, dus de tweede run zocht
+  // alsnog. Bevestigd doordat Xander het zag gebeuren terwijl mijn eigen
+  // test — die te snel las, vóór de tweede/late run klaar was — niets zag
+  // (31 juli 2026). Deze `gebruikerTypt`-ref wordt UITSLUITEND in de
+  // onChange-handler op true gezet, die draait nooit tijdens een
+  // mount-effect, dus is hoe vaak het effect ook loopt altijd consistent.
+  const gebruikerTypt = useRef(false);
   useEffect(() => {
-    if (eersteRender.current) { eersteRender.current = false; return; }
-    if (overslaanVolgendeZoekactie.current) { overslaanVolgendeZoekactie.current = false; return; }
+    if (!gebruikerTypt.current) return;
     // setState-aanroepen staan bewust NIET rechtstreeks in het effect-lichaam
     // (react-hooks/set-state-in-effect) — via setTimeout(…, 0) i.p.v.
     // synchroon, zelfde patroon als elders in de app (zie radar/page.tsx).
@@ -101,7 +102,7 @@ export default function LocatieKiezer({
         <input
           id="locatie-zoek"
           value={term}
-          onChange={(e) => setTerm(e.target.value)}
+          onChange={(e) => { gebruikerTypt.current = true; setTerm(e.target.value); }}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); zoek(); } }}
           placeholder="bv. Zijlweg Haarlem of Velserbroek"
           className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
@@ -120,7 +121,9 @@ export default function LocatieKiezer({
                 onClick={() => {
                   onKies(r);
                   setResultaten(null);
-                  overslaanVolgendeZoekactie.current = true;
+                  // Niet via de onChange-handler, dus gebruikerTypt blijft
+                  // false — het effect hierboven negeert deze wijziging.
+                  gebruikerTypt.current = false;
                   setTerm(r.weergavenaam);
                 }}
                 className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-white">
