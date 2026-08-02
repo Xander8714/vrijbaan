@@ -44,6 +44,24 @@ export function naarMinuten(tijd: string): number | null {
 }
 
 /**
+ * Rondt af naar het dichtstbijzijnde half uur — Xander (2 aug 2026): "geen
+ * enkel boekingssysteem laat je op de minuut klikken, 90% is alleen heel/half
+ * uur". Nodig omdat de `step="1800"` op het `<input type="time">` alleen de
+ * stappentjes-pijltjes beperkt; veel mobiele tijdkiezers (met name iOS)
+ * laten via het scrollwiel gewoon elke minuut kiezen ondanks die step.
+ * Gebruikt zowel door de Radar-voorkeurstijd als de bot (extraheerTijd), zo
+ * betekent "voorkeurstijd" overal in de app hetzelfde soort waarde.
+ */
+export function rondAfOpHalfUur(tijd: string): string | null {
+  const minutenTotaal = naarMinuten(tijd);
+  if (minutenTotaal === null) return null;
+  const afgerond = (Math.round(minutenTotaal / 30) * 30) % (24 * 60);
+  const uren = Math.floor(afgerond / 60);
+  const minuten = afgerond % 60;
+  return `${String(uren).padStart(2, "0")}:${String(minuten).padStart(2, "0")}`;
+}
+
+/**
  * Valt `tijd` binnen `margeUren` rond `voorkeur`?
  *
  * Bewust géén doorloop over middernacht: een padelbaan om 01:00 is geen

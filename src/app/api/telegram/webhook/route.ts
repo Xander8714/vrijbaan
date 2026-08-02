@@ -42,7 +42,7 @@ type TelegramUpdate = {
   callback_query?: { id: string; data?: string; message?: { chat: { id: number } } };
 };
 
-type TelegramKandidaten = { kandidaten: GevondenLocatie[]; tijd?: string | null };
+type TelegramKandidaten = { kandidaten: GevondenLocatie[]; tijd?: string | null; dagOffset?: number | null };
 type Admin = ReturnType<typeof supabaseAdmin>;
 
 async function stuurLocatieKeuze(chatId: number, tekst: string, kandidaten: GevondenLocatie[]) {
@@ -74,7 +74,8 @@ async function vraagLocatieKeuze(
   chatId: number,
   plaatsQuery: string,
   stap: "wacht_locatie_onboarding" | "wacht_locatie_adhoc",
-  tijdVoorAdhoc: string | null
+  tijdVoorAdhoc: string | null,
+  dagOffsetVoorAdhoc: number | null = null
 ): Promise<void> {
   let kandidaten: GevondenLocatie[];
   try {
@@ -90,7 +91,7 @@ async function vraagLocatieKeuze(
     );
     return;
   }
-  const opslag: TelegramKandidaten = { kandidaten, tijd: tijdVoorAdhoc };
+  const opslag: TelegramKandidaten = { kandidaten, tijd: tijdVoorAdhoc, dagOffset: dagOffsetVoorAdhoc };
   await admin
     .from("profiles")
     .update({ telegram_onboarding_stap: stap, telegram_kandidaten: opslag })
@@ -153,7 +154,13 @@ export async function POST(req: NextRequest) {
 
     if (profiel.telegram_onboarding_stap === "wacht_locatie_adhoc") {
       await admin.from("profiles").update({ telegram_onboarding_stap: null, telegram_kandidaten: null }).eq("id", profiel.id);
-      const antwoord = await zoekBeschikbaarheidVoorChat(kandidaat, naam, opgeslagen?.tijd ?? null, SITE_URL);
+      const antwoord = await zoekBeschikbaarheidVoorChat(
+        kandidaat,
+        naam,
+        opgeslagen?.tijd ?? null,
+        SITE_URL,
+        opgeslagen?.dagOffset ?? null
+      );
       await stuurTelegramBericht(chatId, antwoord);
       return NextResponse.json({ ok: true });
     }
@@ -265,7 +272,15 @@ export async function POST(req: NextRequest) {
   // --- Geen actief gesprek: proberen als losse zoekopdracht te lezen ---
   const zoekopdracht = parseAdhocZoekopdracht(tekst);
   if (zoekopdracht) {
-    await vraagLocatieKeuze(admin, profiel.id, chatId, zoekopdracht.plaatsQuery, "wacht_locatie_adhoc", zoekopdracht.tijd);
+    await vraagLocatieKeuze(
+      admin,
+      profiel.id,
+      chatId,
+      zoekopdracht.plaatsQuery,
+      "wacht_locatie_adhoc",
+      zoekopdracht.tijd,
+      zoekopdracht.dagOffset
+    );
     return NextResponse.json({ ok: true });
   }
 

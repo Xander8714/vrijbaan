@@ -20,7 +20,7 @@
  */
 import { CLUBS } from "./clubs";
 import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie } from "./geo";
-import { binnenTijdvenster, naarMinuten } from "./tijd";
+import { binnenTijdvenster, dagLabel, naarMinuten, rondAfOpHalfUur } from "./tijd";
 
 const STRAAL_ADHOC_KM = 15;
 // Zelfde soort grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts,
@@ -33,9 +33,22 @@ const MARGE_UREN_ADHOC = 2;
 export type Slot = { tijd: string; prijs: string | null };
 type BeschikbaarheidRij = { clubId: string; sloten: Slot[]; fout?: string };
 
-function vandaagIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/**
+ * Kiest welke dag een losse zoekopdracht bedoelt. Expliciete dagwoorden
+ * ("morgen", "overmorgen", "vandaag") winnen altijd. Zonder zo'n woord: na
+ * 21:00 automatisch morgen — zelfde regel als de Radar (Xander, 30 juli
+ * 2026: "22:57 als voorkeurstijd voor morgen is zinloos"). Zonder dit zou
+ * "zoek een baan in Haarlem rond 20:00" laat op de avond altijd "geen
+ * plekken" opleveren, puur omdat alle tijden van vandaag al voorbij zijn —
+ * precies de bug die Xander op 2 aug 2026 meldde.
+ */
+export function kiesZoekdatum(dagOffset: number | null): { datum: string; dagOffset: number } {
+  const nu = new Date();
+  const gekozenOffset = dagOffset ?? (nu.getHours() >= 21 ? 1 : 0);
+  const d = new Date(nu);
+  d.setDate(d.getDate() + gekozenOffset);
+  const datum = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { datum, dagOffset: gekozenOffset };
 }
 
 // --- Locatiekandidaten voor een inline keyboard -----------------------
@@ -59,7 +72,11 @@ const TIJD_PATRONEN = [
   /\b([01]?\d|2[0-3])\s*uur\b/i, // 20 uur
 ];
 
-/** Eerste herkenbare tijdsaanduiding in vrije tekst, of null. */
+/**
+ * Eerste herkenbare tijdsaanduiding in vrije tekst, afgerond op het
+ * dichtstbijzijnde half uur (zie rondAfOpHalfUur — geen boekingssysteem
+ * biedt minuut-precisie). Null als er niets herkenbaars in staat.
+ */
 export function extraheerTijd(tekst: string): string | null {
   for (const patroon of TIJD_PATRONEN) {
     const m = patroon.exec(tekst);
@@ -67,8 +84,17 @@ export function extraheerTijd(tekst: string): string | null {
     const uur = m[1].padStart(2, "0");
     const minuut = (m[2] ?? "00").padStart(2, "0");
     const kandidaat = `${uur}:${minuut}`;
-    if (naarMinuten(kandidaat) !== null) return kandidaat;
+    if (naarMinuten(kandidaat) !== null) return rondAfOpHalfUur(kandidaat);
   }
+  return null;
+}
+
+/** "morgen"/"overmorgen"/"vandaag" in vrije tekst, of null (= geen expliciete dag genoemd). */
+export function extraheerDag(tekst: string): number | null {
+  const t = tekst.toLowerCase();
+  if (/\bovermorgen\b/.test(t)) return 2;
+  if (/\bmorgen\b/.test(t)) return 1;
+  if (/\bvandaag\b/.test(t)) return 0;
   return null;
 }
 
@@ -86,13 +112,13 @@ export function extraheerPlaats(tekst: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-export type AdhocZoekopdracht = { plaatsQuery: string; tijd: string | null };
+export type AdhocZoekopdracht = { plaatsQuery: string; tijd: string | null; dagOffset: number | null };
 
-/** Herkent "zoek een baan in <plaats> [rond/om <tijd>]"-achtige berichten. */
+/** Herkent "zoek een baan in <plaats> [rond/om <tijd>] [morgen/overmorgen]"-achtige berichten. */
 export function parseAdhocZoekopdracht(tekst: string): AdhocZoekopdracht | null {
   const plaatsQuery = extraheerPlaats(tekst);
   if (!plaatsQuery) return null;
-  return { plaatsQuery, tijd: extraheerTijd(tekst) };
+  return { plaatsQuery, tijd: extraheerTijd(tekst), dagOffset: extraheerDag(tekst) };
 }
 
 // --- Locatie opzoeken ---------------------------------------------------
@@ -114,20 +140,22 @@ export async function zoekBeschikbaarheidVoorChat(
   coord: Coordinaat,
   plaatsnaam: string,
   tijd: string | null,
-  siteUrl: string
+  siteUrl: string,
+  dagOffsetUitTekst: number | null = null
 ): Promise<string> {
   const inStraal = binnenStraal(CLUBS, coord, STRAAL_ADHOC_KM).slice(0, MAX_CLUBS_ADHOC);
   if (inStraal.length === 0) {
     return `Ik ken geen padelclubs binnen ${STRAAL_ADHOC_KM} km van ${plaatsnaam}.`;
   }
 
-  const datum = vandaagIso();
+  const { datum, dagOffset } = kiesZoekdatum(dagOffsetUitTekst);
   const ids = inStraal.map((c) => c.id);
   const linkParams = new URLSearchParams({
     lat: String(coord.lat),
     lon: String(coord.lon),
     plaats: plaatsnaam,
     straal: String(STRAAL_ADHOC_KM),
+    datum,
   });
   if (tijd) linkParams.set("tijd", tijd);
   // Bewust naar de eigen site, niet naar de boekingssystemen zelf — een
@@ -163,9 +191,10 @@ export async function zoekBeschikbaarheidVoorChat(
     if (regels.length >= MAX_CLUBS_IN_BERICHT) break;
   }
 
+  const dagTekst = dagLabel(datum, dagOffset).toLowerCase();
   const kop = tijd
-    ? `Padel bij ${plaatsnaam} rond ${tijd}, vandaag (${datum}):`
-    : `Padel bij ${plaatsnaam}, vandaag (${datum}):`;
+    ? `Padel bij ${plaatsnaam} rond ${tijd}, ${dagTekst} (${datum}):`
+    : `Padel bij ${plaatsnaam}, ${dagTekst} (${datum}):`;
 
   if (regels.length === 0) {
     return `${kop}\n\nGeen vrije tijden gevonden die passen. Bekijk alle clubs en dagen op de Radar:\n\n${radarLink}`;

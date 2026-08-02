@@ -6,7 +6,7 @@ import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, komendeDagen, naarMinuten } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, komendeDagen, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
@@ -173,6 +173,11 @@ export default function RadarPage() {
           : null;
       const urlTijd = urlParams.get("tijd");
       if (urlTijd && naarMinuten(urlTijd) !== null) setVoorkeurstijd(urlTijd);
+      // Alleen overnemen als het binnen het venster valt dat de Radar toont
+      // (vandaag t/m DAGEN_VOORUIT) — een link naar een dag die niet meer in
+      // de tabbladen staat, mag niet stilzwijgend op een verkeerde dag landen.
+      const urlDatum = urlParams.get("datum");
+      if (urlDatum && dagen.includes(urlDatum)) setGekozenDatum(urlDatum);
 
       let uitOpslag: Zoekgebied | null = null;
       const lokaal = window.localStorage.getItem(OPSLAG_SLEUTEL);
@@ -496,7 +501,7 @@ export default function RadarPage() {
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="voorkeurstijd">Voorkeurstijd</label>
             <input id="voorkeurstijd" type="time" step="1800" value={voorkeurstijd}
-              onChange={(e) => setVoorkeurstijd(e.target.value)}
+              onChange={(e) => setVoorkeurstijd(rondAfOpHalfUur(e.target.value) ?? e.target.value)}
               className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
           <div>
