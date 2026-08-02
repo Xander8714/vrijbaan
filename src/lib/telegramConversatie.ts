@@ -124,7 +124,8 @@ export function parseAdhocZoekopdracht(tekst: string): AdhocZoekopdracht | null 
 // --- Locatie opzoeken ---------------------------------------------------
 
 export async function zoekLocatieKandidaten(plaatsQuery: string): Promise<GevondenLocatie[]> {
-  return zoekLocatiesPdok(plaatsQuery, 5);
+  // Alleen dorpen/steden — geen straten, zie de toelichting bij zoekLocatiesPdok.
+  return zoekLocatiesPdok(plaatsQuery, 5, ["woonplaats"]);
 }
 
 // --- Live beschikbaarheid ophalen + formatteren voor een chatbericht ---

@@ -116,13 +116,21 @@ function naarSoort(type: string | undefined): GevondenLocatie["soort"] {
  * dezelfde PDOK-aanroep + parsing bestaat. Zie de moduledocstring hierboven
  * voor waarom PDOK en de valkuilen (fuzzy matching, lon vóór lat).
  */
-export async function zoekLocatiesPdok(q: string, rows = 8): Promise<GevondenLocatie[]> {
+export async function zoekLocatiesPdok(
+  q: string,
+  rows = 8,
+  // Standaard adres/straat/woonplaats (Radar- en Account-zoekvelden, waar een
+  // exact adres nuttig is). De bot vraagt alleen "woonplaats" op — Xander
+  // (2 aug 2026): straatniveau ("Aarwinkelweg", "Abeelstraat") is voor een
+  // straal-zoekopdracht in de chat onnodige ruis, daar wil je gewoon de stad.
+  types: Array<GevondenLocatie["soort"]> = ["adres", "weg", "woonplaats"]
+): Promise<GevondenLocatie[]> {
   const url = new URL(PDOK_FREE);
   url.searchParams.set("q", q);
   // Alleen soorten waar een zinvol middelpunt bij hoort: een compleet adres,
   // een straat, of een woonplaats. Provincies/gemeenten laten we weg omdat
   // hun middelpunt te grof is om een straal vanaf te rekenen.
-  url.searchParams.set("fq", "type:(adres OR weg OR woonplaats)");
+  url.searchParams.set("fq", `type:(${types.join(" OR ")})`);
   url.searchParams.set("rows", String(rows));
   url.searchParams.set("fl", "id,type,weergavenaam,straatnaam,woonplaatsnaam,postcode,centroide_ll");
 
