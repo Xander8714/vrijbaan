@@ -6,7 +6,7 @@ import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, komendeDagen } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, komendeDagen, naarMinuten } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
@@ -63,6 +63,14 @@ export default function RadarPage() {
     return `${String(nu.getHours()).padStart(2, "0")}:${String(nu.getMinutes()).padStart(2, "0")}`;
   });
   const [margeUren, setMargeUren] = useState(2);
+
+  // Handmatige trigger voor de "Zoek nu"-knop — het effect dat beschikbaarheid
+  // ophaalt reageert normaal alleen op wijzigingen in club-selectie/datum, dus
+  // nogmaals klikken bij ONgewijzigde filters deed zichtbaar niets. Xander
+  // (2 aug 2026): "een knop 'zoek nu' zodat je zeker weet dat die daadwerkelijk
+  // gaat zoeken". Een oplopende teller in de dependency-array forceert een
+  // nieuwe ronde, ook als er verder niets veranderd is.
+  const [handmatigeZoekopdracht, setHandmatigeZoekopdracht] = useState(0);
 
   const [zoekgebied, setZoekgebied] = useState<Zoekgebied | null>(null);
   const [straalKm, setStraalKm] = useState(10);
@@ -146,6 +154,26 @@ export default function RadarPage() {
     // we iets in de state zetten. (Scheelt ook een cascading render — zie de
     // react-hooks/set-state-in-effect regel.)
     const init = async () => {
+      // Query-params vanuit een gedeelde link (bv. de Telegram-bot) winnen van
+      // opgeslagen/automatische locatie — wie een link met een specifieke
+      // plaats+tijd volgt, wil precies dat zien. 2 aug 2026: nodig zodra
+      // botlinks naar /radar?lat=..&lon=..&plaats=..&straal=..&tijd=.. wijzen,
+      // zodat boekingslinks via de site lopen i.p.v. rechtstreeks naar de club.
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLat = Number(urlParams.get("lat"));
+      const urlLon = Number(urlParams.get("lon"));
+      const uitUrl: Zoekgebied | null =
+        Number.isFinite(urlLat) && Number.isFinite(urlLon) && urlParams.has("lat") && urlParams.has("lon")
+          ? {
+              lat: urlLat,
+              lon: urlLon,
+              plaatsnaam: urlParams.get("plaats") ?? "de gekozen locatie",
+              straalKm: Number(urlParams.get("straal")) || 10,
+            }
+          : null;
+      const urlTijd = urlParams.get("tijd");
+      if (urlTijd && naarMinuten(urlTijd) !== null) setVoorkeurstijd(urlTijd);
+
       let uitOpslag: Zoekgebied | null = null;
       const lokaal = window.localStorage.getItem(OPSLAG_SLEUTEL);
       if (lokaal) {
@@ -177,7 +205,8 @@ export default function RadarPage() {
         // awaiten: dit start de (async) browser-geolocatie op de achtergrond,
         // de rest van de pagina hoeft daar niet op te wachten. Alleen als er
         // nog geen locatie bekend is; een bewaard zoekgebied wint altijd.
-        if (uitOpslag) { setZoekgebied(uitOpslag); setStraalKm(uitOpslag.straalKm); }
+        const eersteKeus = uitUrl ?? uitOpslag;
+        if (eersteKeus) { setZoekgebied(eersteKeus); setStraalKm(eersteKeus.straalKm); }
         else gebruikMijnLocatie();
         setLaden(false);
         return;
@@ -212,7 +241,7 @@ export default function RadarPage() {
               straalKm: profiel.zoekstraal_km ?? 10,
             }
           : null;
-      const gekozen = uitProfiel ?? uitOpslag;
+      const gekozen = uitUrl ?? uitProfiel ?? uitOpslag;
       if (gekozen) { setZoekgebied(gekozen); setStraalKm(gekozen.straalKm); }
       else gebruikMijnLocatie(); // idem: automatisch laden i.p.v. wachten op een klik
       setLaden(false);
@@ -241,8 +270,21 @@ export default function RadarPage() {
    * "alles ophalen" duurt ruim een uur. Boven MAX_ZICHTBAAR halen we niets op en
    * vragen we de gebruiker zijn selectie te verkleinen — beter een duidelijke
    * vraag dan een verzoek dat minuten hangt.
+   *
+   * BEWUST NIET automatisch bij laden of bij elke filterwijziging — Xander
+   * (2 aug 2026): "die 'bezig met zoeken' zodra de site geopend wordt werkt
+   * mij ook tegen, dat moet eruit, pas zoeken op het moment van knop
+   * drukken". `handmatigeZoekopdracht` is daarom de ENIGE trigger: die staat
+   * op 0 tot de eerste klik op "Zoek nu", dus zowel het laden van de pagina
+   * als het wisselen van dag/straal/locatie doet op zichzelf niets meer —
+   * pas een nieuwe klik haalt verse data op. clubsInStraal/gekozenDatum
+   * staan bewust NIET in de dependency-array (ze worden wél gelezen, via de
+   * closure van het moment van de klik): ze mogen het effect niet opnieuw
+   * laten afgaan, alleen de knop mag dat.
    */
   useEffect(() => {
+    if (handmatigeZoekopdracht === 0) return; // nog niet op "Zoek nu" gedrukt
+
     const ids = clubsInStraal.map((c) => c.id);
     if (ids.length === 0 || ids.length > MAX_ZICHTBAAR) return;
 
@@ -278,7 +320,12 @@ export default function RadarPage() {
 
     haalOp();
     return () => { afgebroken = true; };
-  }, [clubsInStraal, gekozenDatum]);
+    // clubsInStraal/gekozenDatum bewust buiten de dependency-array — alleen
+    // handmatigeZoekopdracht (de "Zoek nu"-knop) mag dit effect starten, zie
+    // de toelichting hierboven. De huidige waarden worden nog wel gebruikt,
+    // via de closure van het moment van de klik.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handmatigeZoekopdracht]);
 
 
   const kiesLocatie = (loc: GevondenLocatie) => {
@@ -418,7 +465,20 @@ export default function RadarPage() {
 
       {/* Wanneer wil je spelen? */}
       <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-slate-900">Wanneer wil je spelen?</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-slate-900">Wanneer wil je spelen?</h2>
+          {/* Expliciete trigger i.p.v. alleen automatisch verversen — zichtbare
+              feedback (spinner-tekst + disabled) zodat een klik voelbaar iets
+              doet, ook als de filters ongewijzigd zijn. */}
+          <button
+            type="button"
+            onClick={() => setHandmatigeZoekopdracht((n) => n + 1)}
+            disabled={metingBezig}
+            className="rounded-md bg-court-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-court-700 disabled:opacity-60"
+          >
+            {metingBezig ? "Bezig met zoeken…" : "🔍 Zoek nu"}
+          </button>
+        </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {dagen.map((datum, i) => (
@@ -454,7 +514,20 @@ export default function RadarPage() {
           )}
         </div>
 
-        {voorkeurstijd && (
+        {/* Drie standen — Xander (2 aug 2026): (1) nog nooit gezocht (sinds
+            zoeken niet meer automatisch gebeurt) mag niet als "geen match"
+            ogen, (2) tijdens het zoeken evenmin ("geen enkele club" verscheen
+            eerder al tíjdens het ophalen, terwijl er na afloop wél 13 vrije
+            banen bleken te zijn), (3) pas na afloop het echte resultaat. */}
+        {voorkeurstijd && handmatigeZoekopdracht === 0 && (
+          <p className="mt-3 text-sm text-slate-500">
+            Klik op &quot;Zoek nu&quot; hierboven om te zoeken naar een vrije baan rond {voorkeurstijd}.
+          </p>
+        )}
+        {voorkeurstijd && handmatigeZoekopdracht > 0 && metingBezig && (
+          <p className="mt-3 text-sm text-slate-500">Nog aan het zoeken naar een vrije baan rond {voorkeurstijd}…</p>
+        )}
+        {voorkeurstijd && handmatigeZoekopdracht > 0 && !metingBezig && (
           <p className="mt-3 text-sm text-slate-600">
             {metPassendeTijd > 0
               ? `${metPassendeTijd} club(s) met een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur).`
@@ -554,7 +627,16 @@ export default function RadarPage() {
         </div>
       )}
 
-      {clubsInStraal.length <= MAX_ZICHTBAAR && metingBezig && (
+      {/* Zoeken gebeurt niet meer automatisch (zie de toelichting bij het
+          ophaal-effect) — zonder deze hint is niet duidelijk waarom er nog
+          geen tijden staan. */}
+      {clubsInStraal.length <= MAX_ZICHTBAAR && handmatigeZoekopdracht === 0 && (
+        <p className="mt-3 rounded-md bg-court-50 px-4 py-2 text-sm text-court-800">
+          Klik op &quot;🔍 Zoek nu&quot; hierboven om de actuele beschikbaarheid op te halen.
+        </p>
+      )}
+
+      {clubsInStraal.length <= MAX_ZICHTBAAR && handmatigeZoekopdracht > 0 && metingBezig && (
         <p className="mt-3 rounded-md bg-slate-100 px-4 py-2 text-sm text-slate-600">
           Beschikbaarheid ophalen bij {clubsInStraal.length} clubs… dit kan tot een minuut duren, we vragen het
           rechtstreeks bij de boekingssystemen op.
@@ -646,32 +728,80 @@ export default function RadarPage() {
                       : club.sloten;
                     const teTonen = open ? gesorteerd : gesorteerd.slice(0, MAX_TIJDEN_ZICHTBAAR);
                     const verborgen = club.sloten.length - teTonen.length;
+                    // Losse knop-render, gedeeld tussen de "past bij je voorkeur"-
+                    // en de "overige tijden"-groep hieronder.
+                    const slotKnop = (slot: Slot, past: boolean) => (
+                      <li key={slot.tijd}>
+                        <button
+                          type="button"
+                          onClick={() => kiesTijd(club, slot.tijd)}
+                          title={`Boek ${slot.tijd} bij ${club.naam}${slot.prijs ? ` (${slot.prijs})` : ""}`}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition hover:ring-2 hover:ring-court-400 ${
+                            past ? "bg-court-100 text-court-900" : "bg-slate-50 text-slate-400"
+                          }`}
+                        >
+                          {slot.tijd}
+                          {slot.prijs && <span className="ml-1 opacity-70">· {slot.prijs}</span>}
+                        </button>
+                      </li>
+                    );
+
+                    // Met een voorkeurstijd: twee losse, gelabelde groepen i.p.v.
+                    // één lijst met alleen een kleurverschil — Xander (2 aug
+                    // 2026): "een scheiding tussen voorkeurstijd groen en
+                    // daaronder overige beschikbare tijden grijs". De
+                    // matchende tijden staan altijd volledig (meestal maar een
+                    // paar); "Toon nog N" geldt alleen voor de overige groep.
+                    if (voorkeurstijd) {
+                      const passend = gesorteerd.filter((s) => binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
+                      const overig = gesorteerd.filter((s) => !binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
+                      const overigTeTonen = open ? overig : overig.slice(0, MAX_TIJDEN_ZICHTBAAR);
+                      const overigVerborgen = overig.length - overigTeTonen.length;
+                      return (
+                        <>
+                          <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <BalIcon className="h-3.5 w-3.5" />
+                            {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
+                          </p>
+                          {passend.length > 0 && (
+                            <>
+                              <p className="mt-2 text-xs font-medium text-court-700">
+                                Past bij {voorkeurstijd} (± {margeUren} uur)
+                              </p>
+                              <ul className="mt-1 flex flex-wrap gap-1.5">{passend.map((s) => slotKnop(s, true))}</ul>
+                            </>
+                          )}
+                          {overig.length > 0 && (
+                            <>
+                              <p className="mt-3 text-xs font-medium text-slate-500">Overige tijden</p>
+                              <ul className="mt-1 flex flex-wrap gap-1.5">{overigTeTonen.map((s) => slotKnop(s, false))}</ul>
+                              {overigVerborgen > 0 && (
+                                <button type="button" onClick={() => wisselUitklap(club.id)}
+                                  className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
+                                  + Toon nog {overigVerborgen} {overigVerborgen === 1 ? "tijd" : "tijden"}
+                                </button>
+                              )}
+                              {open && overig.length > MAX_TIJDEN_ZICHTBAAR && (
+                                <button type="button" onClick={() => wisselUitklap(club.id)}
+                                  className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
+                                  Toon minder
+                                </button>
+                              )}
+                            </>
+                          )}
+                          <p className="mt-2 text-xs text-slate-400">Klik op een tijd om naar de boekingspagina te gaan.</p>
+                        </>
+                      );
+                    }
+
+                    // Geen voorkeurstijd: gewoon één platte lijst.
                     return (
                       <>
                         <p className="flex items-center gap-1.5 text-xs text-slate-500">
                           <BalIcon className="h-3.5 w-3.5" />
                           {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
                         </p>
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
-                          {teTonen.map((slot) => {
-                            const past = !voorkeurstijd || binnenTijdvenster(slot.tijd, voorkeurstijd, margeUren);
-                            return (
-                              <li key={slot.tijd}>
-                                <button
-                                  type="button"
-                                  onClick={() => kiesTijd(club, slot.tijd)}
-                                  title={`Boek ${slot.tijd} bij ${club.naam}${slot.prijs ? ` (${slot.prijs})` : ""}`}
-                                  className={`rounded-md px-2 py-1 text-xs font-medium transition hover:ring-2 hover:ring-court-400 ${
-                                    past ? "bg-court-50 text-court-800" : "bg-slate-50 text-slate-400"
-                                  }`}
-                                >
-                                  {slot.tijd}
-                                  {slot.prijs && <span className="ml-1 opacity-70">· {slot.prijs}</span>}
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
+                        <ul className="mt-2 flex flex-wrap gap-1.5">{teTonen.map((s) => slotKnop(s, true))}</ul>
                         {verborgen > 0 && (
                           <button
                             type="button"

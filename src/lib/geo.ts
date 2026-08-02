@@ -92,6 +92,66 @@ export function afgerondeAfstand(a: Coordinaat, b: Coordinaat): number {
  * maximale straal. Generiek gehouden zodat zowel clubs als woonplaatsen er
  * door kunnen zonder hun eigen sorteerlogica te hoeven hebben.
  */
+const PDOK_FREE = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free";
+
+type PdokDoc = {
+  id?: string;
+  type?: string;
+  weergavenaam?: string;
+  straatnaam?: string;
+  woonplaatsnaam?: string;
+  postcode?: string;
+  centroide_ll?: string;
+};
+
+function naarSoort(type: string | undefined): GevondenLocatie["soort"] {
+  if (type === "adres" || type === "weg" || type === "woonplaats") return type;
+  return "overig";
+}
+
+/**
+ * Zoekt een straat, adres of woonplaats via de PDOK Locatieserver — gedeeld
+ * door /api/adres-zoeken (de Radar/Account-zoekvelden) en de Telegram-bot
+ * (2 aug 2026, natuurlijke-taal-zoekopdrachten), zodat er niet twee keer
+ * dezelfde PDOK-aanroep + parsing bestaat. Zie de moduledocstring hierboven
+ * voor waarom PDOK en de valkuilen (fuzzy matching, lon vóór lat).
+ */
+export async function zoekLocatiesPdok(q: string, rows = 8): Promise<GevondenLocatie[]> {
+  const url = new URL(PDOK_FREE);
+  url.searchParams.set("q", q);
+  // Alleen soorten waar een zinvol middelpunt bij hoort: een compleet adres,
+  // een straat, of een woonplaats. Provincies/gemeenten laten we weg omdat
+  // hun middelpunt te grof is om een straal vanaf te rekenen.
+  url.searchParams.set("fq", "type:(adres OR weg OR woonplaats)");
+  url.searchParams.set("rows", String(rows));
+  url.searchParams.set("fl", "id,type,weergavenaam,straatnaam,woonplaatsnaam,postcode,centroide_ll");
+
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`PDOK gaf ${res.status} ${res.statusText} — locatiezoeken is nu niet beschikbaar.`);
+  }
+  const data = (await res.json()) as { response?: { docs?: PdokDoc[] } };
+  const docs = data.response?.docs ?? [];
+
+  // Documenten zonder bruikbaar middelpunt slaan we over in plaats van ze
+  // met NaN-coördinaten door te geven.
+  return docs.flatMap((doc) => {
+    const punt = parseCentroideLl(doc.centroide_ll);
+    if (!punt) return [];
+    return [
+      {
+        id: doc.id ?? `${doc.weergavenaam}-${punt.lat},${punt.lon}`,
+        weergavenaam: doc.weergavenaam ?? "Onbekende locatie",
+        soort: naarSoort(doc.type),
+        straatnaam: doc.straatnaam,
+        woonplaatsnaam: doc.woonplaatsnaam,
+        postcode: doc.postcode,
+        ...punt,
+      },
+    ];
+  });
+}
+
 export function binnenStraal<T extends Coordinaat>(
   items: T[],
   vanaf: Coordinaat,
