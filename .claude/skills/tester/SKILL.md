@@ -1,9 +1,9 @@
 ---
 name: tester
-description: How to verify changes in the VrijBaan repo (Dutch padel-availability + KNLTB-opstelling app) before claiming they work. Use this after implementing anything here, when the user asks to test/verify/check a change, when a scraper or polling job needs validating against a live site, or when adding unit tests. Encodes what can be verified locally vs. what needs real credentials/network, the vitest conventions in src/lib/__tests__/, the Playwright scraper verification loop, and the honest-reporting rule that an unverifiable step gets reported as unverified rather than assumed working. Trigger on "test dit", "werkt dit?", "controleer", or right after finishing an implementation.
+description: How to verify changes in the VrijeBaan repo (Dutch padel-availability + KNLTB-opstelling app) before claiming they work. Use this after implementing anything here, when the user asks to test/verify/check a change, when a scraper or polling job needs validating against a live site, or when adding unit tests. Encodes what can be verified locally vs. what needs real credentials/network, the vitest conventions in src/lib/__tests__/, the Playwright scraper verification loop, and the honest-reporting rule that an unverifiable step gets reported as unverified rather than assumed working. Trigger on "test dit", "werkt dit?", "controleer", or right after finishing an implementation.
 ---
 
-# VrijBaan — testing & verification
+# VrijeBaan — testing & verification
 
 The point of this skill: in this repo a claim that something "works" is a
 piece of documented data (see the `developer` skill's documentation

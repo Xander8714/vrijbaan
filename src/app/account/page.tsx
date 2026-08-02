@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Profiel } from "@/lib/types";
 import ProfielFormulier from "./ProfielFormulier";
 import TelegramKoppelen from "./TelegramKoppelen";
+
+// Privé, achter inloggen — niets hier is nuttig voor een zoekmachine.
+export const metadata: Metadata = { title: "Mijn account", robots: { index: false, follow: false } };
 
 export default async function AccountPage() {
   const supabase = await supabaseServer();

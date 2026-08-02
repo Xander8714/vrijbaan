@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Help & veelgestelde vragen",
+  description: "Hoe je een padelbaan volgt, een melding krijgt zodra er een plek vrijkomt, en antwoord op veelgestelde vragen over VrijeBaan.",
+  alternates: { canonical: "/help" },
+};
 
 const usecases = [
   { titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club", stappen: ["Ga naar Radar.", "Klik 'Volg deze club' bij één of meerdere clubs.", "Zodra de live-koppeling actief is, krijg je een melding zodra er een slot vrijkomt."] },
@@ -17,7 +24,7 @@ export default function HelpPage() {
       <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="mt-4 text-3xl font-bold text-slate-900">Help &amp; Use cases</h1>
       <section className="mt-8">
-        <h2 className="text-xl font-semibold text-slate-900">Zo gebruik je VrijBaan</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Zo gebruik je VrijeBaan</h2>
         <div className="mt-4 space-y-4">
           {usecases.map((u) => (
             <div key={u.titel} className="rounded-lg border border-slate-200 bg-white p-4">

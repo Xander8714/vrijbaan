@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { RacketIcon, BalIcon } from "@/components/PadelIcons";
+
+export const metadata: Metadata = {
+  title: "Vind een vrije padelbaan in Nederland",
+  description:
+    "Live beschikbaarheid van padelbanen bij Playtomic-, KNLTB Meet & Play- en Peakz-clubs in heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
+  alternates: { canonical: "/" },
+};
 
 export default function Home() {
   return (
@@ -14,11 +22,11 @@ export default function Home() {
             Begonnen in Haarlem, nu landelijk
           </div>
           <h1 className="mt-3 flex items-center gap-3 text-5xl font-extrabold tracking-tight text-white">
-            VrijBaan
+            VrijeBaan
             <RacketIcon className="h-9 w-9 text-court-300" />
           </h1>
           <p className="mt-4 max-w-xl text-lg text-slate-300">
-            Vrij baan om te padellen. VrijBaan bundelt live beschikbaarheid van padelclubs bij jou in de buurt — zoek
+            Vrij baan om te padellen. VrijeBaan bundelt live beschikbaarheid van padelclubs bij jou in de buurt — zoek
             op adres, stel je straal in en boek direct bij de club zelf.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">

@@ -61,7 +61,7 @@ help-usecase verwijderd; de route `src/app/opstelling/` is verwijderd.
 `src/lib/lineup.ts` (het rekenmodel) + de tests blijven staan — dat wordt al
 herbruikt in `vrijbaan-mobile` (§9.1) en weggooien van getest werkend werk
 zonder noodzaak is nergens goed voor. §4 (het oorspronkelijke featureplan) en
-§9.4 (mobiele scope v1) hieronder zijn beide bijgewerkt. VrijBaan is
+§9.4 (mobiele scope v1) hieronder zijn beide bijgewerkt. VrijeBaan is
 hiermee **één product: de beschikbaarheid-radar.**
 
 ### Eerste echte meting (29 juli 2026, `npm run check -- Haarlem 10 2026-07-30 12:00 2`)
@@ -664,7 +664,7 @@ Belangrijke afwegingen, dus niet zomaar te bouwen:
 zijn expliciet gemarkeerd — een verzonnen cijfer is erger dan geen cijfer,
 want er wordt op besloten.*
 
-### 11.0 Waar staat VrijBaan — concurrentie-check
+### 11.0 Waar staat VrijeBaan — concurrentie-check
 
 Xander bracht drie mogelijke concurrenten aan. Ik heb er twee kunnen checken;
 **Padelchecker en Hasta La Pista niet** (Play Store-pagina's zijn te
@@ -705,24 +705,24 @@ WhatsApp-assistent bouwen — anders bouw je het duurdere idee vóór je weet of
 het goedkopere al werkt.
 
 ### Optie: commissie per boeking
-**Wat**: een vast bedrag of percentage per boeking die via een VrijBaan-link
+**Wat**: een vast bedrag of percentage per boeking die via een VrijeBaan-link
 tot stand komt, betaald door de club (niet de speler).
 **Voor wie**: clubs die baat hebben bij extra boekingen via Radar —
 vooral kleinere/zelfstandige clubs (Foys/Meet & Play), niet de grote
 platforms.
 **Waarde (met aannames gemarkeerd)**: *AANNAME — geen echte gebruikscijfers
-beschikbaar, VrijBaan heeft nog geen actieve gebruikers.* Als voorbeeld:
+beschikbaar, VrijeBaan heeft nog geen actieve gebruikers.* Als voorbeeld:
 500 spelers × 2 boekingen/maand via een gevolgde club = 1.000 boekingen/mnd.
 Bij €0,25/boeking = €250/mnd. Bij 1% van een gemiddelde reservering
 (~€22,50 voor 60 min/4 spelers) = €0,225/boeking — vergelijkbaar bedrag,
 dus de keuze tussen vast bedrag en percentage maakt bij kleine bedragen
 weinig verschil.
-**Het echte probleem, groter dan het bedrag**: VrijBaan **kan op dit moment
+**Het echte probleem, groter dan het bedrag**: VrijeBaan **kan op dit moment
 niet vaststellen of een boeking daadwerkelijk heeft plaatsgevonden.** De
 "boek hier"-knop (§0) opent een nieuw tabblad naar de site van de club —
-daarna gebeurt er niets wat VrijBaan kan zien. Commissie vragen over iets
+daarna gebeurt er niets wat VrijeBaan kan zien. Commissie vragen over iets
 wat je niet kunt meten is niet uit te leggen aan een club en niet te
-verifiëren door VrijBaan. Dit vereist eerst een van drie dingen: (a) een
+verifiëren door VrijeBaan. Dit vereist eerst een van drie dingen: (a) een
 officiële boekings-API met terugkoppeling (Playtomic Route A, zie
 API_REQUIREMENTS.md §1 — bestaat al als optie, nog niet aangevraagd), (b)
 een affiliate-/UTM-afspraak per platform (moet je navragen, niet aangenomen
@@ -734,7 +734,7 @@ als developer (gesprek met de platforms/clubs).
 **Afhankelijkheden/risico's**: *AANNAME van Xander, niet geverifieerd*: "bij
 Padelverenigingen.nl mag je 5% vragen als er via dat systeem geboekt
 wordt" — controleer dit bij de bron zelf voordat je erop rekent, dat kan een
-voorwaarde van hún platform zijn, niet iets dat automatisch voor VrijBaan
+voorwaarde van hún platform zijn, niet iets dat automatisch voor VrijeBaan
 geldt. Bij Playtomic-schaal (internationaal platform) is een aparte
 commissie-afspraak per Nederlandse club onrealistisch — daar zou het via
 Route A (officiële API-partner, één afspraak met Playtomic zelf) moeten
@@ -753,7 +753,7 @@ commerciële afspraak zelf sluiten.
 **Positionering-advies (29 juli 2026, via de marketing-campaign-planner
 skill — mening/advies, geen onderbouwd feit):**
 - **Verkoop geen bestaande zichtbaarheid, verkoop een nieuwe laag erbovenop.**
-  VrijBaan toont een club nu al gratis en zonder toestemming (via scraping) —
+  VrijeBaan toont een club nu al gratis en zonder toestemming (via scraping) —
   een club vragen te betalen voor "zichtbaarheid die ze al hebben" voelt als
   betalen om niet gestraft te worden, en dat is een slechte eerste indruk.
   Een **optionele, echt nieuwe** laag (uitgelicht/bovenaan in de lijst, een
@@ -789,10 +789,10 @@ voorinvullen — zie §0/`boekingsLink.ts`).
 scholen die zichtbaarheid willen zonder zelf een website/app te bouwen.
 **Waarom dit FUNDAMENTEEL anders is dan de banen-radar**: bij banen is er
 altijd een bestaand boekingssysteem om te scrapen/bevragen (Playtomic, Foys,
-Meet & Play) — VrijBaan hoeft de club niet te overtuigen, de data staat er
+Meet & Play) — VrijeBaan hoeft de club niet te overtuigen, de data staat er
 al publiek. Bij scholen bestaat zo'n publiek systeem meestal niet: een
 lesrooster staat vaak in een agenda van de trainer zelf, WhatsApp, of een
-losse tool. **VrijBaan kan dit dus niet scrapen — de school moet zelf
+losse tool. **VrijeBaan kan dit dus niet scrapen — de school moet zelf
 pushen.** Dat maakt dit een acquisitie/sales-product (elke school moet
 individueel geworven en aangesloten worden), geen scrape-en-klaar-product
 zoals Radar. Voor een solo developer is dat een ander soort werk dan
@@ -823,8 +823,8 @@ Xander vroeg om een helder overzicht. Onderstaande bedragen zijn
 | Doelgroep | Model | Voorstel | Onderbouwing |
 |---|---|---|---|
 | Spelers | Maandabonnement (bestaat al) | €4,99/mnd | Ongewijzigd, staat al in Stripe (§5/README). |
-| Verenigingen (zelf aangemeld via `/club-aanmelden`) | Eenmalig | €25–50 eenmalig | Dekt het handmatige verificatiewerk (KvK-check, boekingslink invoeren) — geen doorlopende kosten voor VrijBaan, dus geen abonnement nodig. Auto-ontdekte clubs (Playtomic/Foys-crawl) blijven gratis vermeld — die kosten geen handmatig werk. |
-| Padelscholen | Jaarabonnement | €99–199/jaar | Doorlopende zichtbaarheid is een doorlopende dienst (i.t.t. de eenmalige verenigings-verificatie), dus abonnement past beter. Prijs sterk afhankelijk van hoeveel spelers een school realistisch via VrijBaan bereikt — nu niet te onderbouwen (zie schoolintegratie-optie hierboven). |
+| Verenigingen (zelf aangemeld via `/club-aanmelden`) | Eenmalig | €25–50 eenmalig | Dekt het handmatige verificatiewerk (KvK-check, boekingslink invoeren) — geen doorlopende kosten voor VrijeBaan, dus geen abonnement nodig. Auto-ontdekte clubs (Playtomic/Foys-crawl) blijven gratis vermeld — die kosten geen handmatig werk. |
+| Padelscholen | Jaarabonnement | €99–199/jaar | Doorlopende zichtbaarheid is een doorlopende dienst (i.t.t. de eenmalige verenigings-verificatie), dus abonnement past beter. Prijs sterk afhankelijk van hoeveel spelers een school realistisch via VrijeBaan bereikt — nu niet te onderbouwen (zie schoolintegratie-optie hierboven). |
 
 **Dit raakt nog geen bestaande code**: er is geen Stripe-product voor
 verenigingen/scholen, en `/club-aanmelden` vraagt nu geen betaling. Bouwen

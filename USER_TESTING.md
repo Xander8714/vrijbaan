@@ -1,4 +1,4 @@
-# Gebruikerstest-protocol — VrijBaan
+# Gebruikerstest-protocol — VrijeBaan
 
 Script om echt met padelspelers te testen (5-8 mensen, mix recreatief/competitie).
 

@@ -38,7 +38,7 @@ export default function Navigatie() {
     <header className="sticky top-0 z-20 bg-ink-900">
       <nav className="mx-auto flex max-w-4xl items-center justify-between px-6 py-3">
         <Link href="/" className="text-lg font-bold tracking-tight text-white">
-          Vrij<span className="text-ball-400">Baan</span>
+          Vrije<span className="text-ball-400">Baan</span>
         </Link>
 
         {/* Vanaf sm: gewone horizontale tabbladen. Daaronder verstopt achter

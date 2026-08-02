@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (!code) {
     await stuurTelegramBericht(
       chatId,
-      "Open deze bot via de knop 'Koppel Telegram' op je Account-pagina in VrijBaan — dan koppel ik automatisch aan je account."
+      "Open deze bot via de knop 'Koppel Telegram' op je Account-pagina in VrijeBaan — dan koppel ik automatisch aan je account."
     );
     return NextResponse.json({ ok: true });
   }
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     await stuurTelegramBericht(
       chatId,
       dubbeleChat
-        ? "Deze Telegram-chat is al aan een ander VrijBaan-account gekoppeld."
+        ? "Deze Telegram-chat is al aan een ander VrijeBaan-account gekoppeld."
         : "Koppelen is mislukt. Vraag op je Account-pagina een nieuwe koppellink op."
     );
     return NextResponse.json({ ok: true });

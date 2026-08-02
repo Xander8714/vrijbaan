@@ -60,7 +60,7 @@ begin insert into public.profiles (id, email) values (new.id, new.email); return
 $$ language plpgsql security definer;
 create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
 
--- Aanmeldingen van clubs die zelf in VrijBaan willen (29 juli 2026).
+-- Aanmeldingen van clubs die zelf in VrijeBaan willen (29 juli 2026).
 -- BELANGRIJK: een rij hier is een AANVRAAG, geen club in de app. Niets uit deze
 -- tabel wordt getoond voordat `status` op 'goedgekeurd' staat, en dat mag pas
 -- nadat de KvK-inschrijving (commerciële club) of de verenigingsregistratie

@@ -1,9 +1,9 @@
 ---
 name: developer
-description: How to write code in the VrijBaan repo (Dutch padel-availability + KNLTB-opstelling Next.js app). Use this for ANY implementation work here — new features, new scrapers/integrations, API routes, UI changes, refactors, or fixing bugs. Covers this repo's non-standard Next.js version, Dutch-language convention, the "radically honest, dated" documentation style used throughout PROJECTPLAN.md/API_REQUIREMENTS.md, and the established scraper/polling architecture. Trigger even when the user just says "bouw X" or "fix Y" without naming the skill.
+description: How to write code in the VrijeBaan repo (Dutch padel-availability + KNLTB-opstelling Next.js app). Use this for ANY implementation work here — new features, new scrapers/integrations, API routes, UI changes, refactors, or fixing bugs. Covers this repo's non-standard Next.js version, Dutch-language convention, the "radically honest, dated" documentation style used throughout PROJECTPLAN.md/API_REQUIREMENTS.md, and the established scraper/polling architecture. Trigger even when the user just says "bouw X" or "fix Y" without naming the skill.
 ---
 
-# VrijBaan — developer conventions
+# VrijeBaan — developer conventions
 
 Solo-developer project. These conventions exist because this codebase leans
 hard on precise, dated, verified documentation instead of assumptions — the

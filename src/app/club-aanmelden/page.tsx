@@ -111,7 +111,7 @@ export default function ClubAanmeldenPage() {
       <h1 className="text-3xl font-bold text-slate-900">Je club aanmelden</h1>
       <p className="mt-2 text-slate-600">
         Baan- of clubeigenaar? Meld je club aan en spelers in jouw omgeving vinden je vrije banen terug in
-        VrijBaan. Aanmelden is gratis.
+        VrijeBaan. Aanmelden is gratis.
       </p>
       <p className="mt-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <strong>We controleren elke aanmelding.</strong> Voordat een club in de app komt, checken we de

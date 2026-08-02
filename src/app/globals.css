@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
+/*
+ * Bewust geen dark-mode variant: de app heeft nergens een écht donker thema
+ * gebouwd (kaarten zijn overal expliciet bg-white/text-slate-*), dus
+ * color-scheme vastzetten op light voorkomt twee dingen die anders op een
+ * telefoon met systeem-donkere-modus misgingen (gemeld door Xander, 2 aug
+ * 2026 — "wit op wit" op sommige telefoons): (1) tekst zonder expliciete
+ * kleurklasse erfde via --foreground een bijna-witte kleur terwijl de kaart
+ * eromheen gewoon wit bleef, en (2) de browser paste zijn eigen donkere
+ * standaardstijl toe op formuliervelden (input/select), los van onze CSS.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
 }
 
 /*
@@ -50,13 +61,6 @@
   --color-ink-800: #121f1c;
   --color-ink-700: #1b2d29;
   --color-ink-600: #263d38;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

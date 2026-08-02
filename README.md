@@ -1,4 +1,4 @@
-# VrijBaan
+# VrijeBaan
 
 Padel-beschikbaarheid-radar voor Nederland: zoek op adres/plaats, stel een
 straal in en zie live vrije baantijden — mét prijs — bij clubs op Playtomic,
@@ -18,7 +18,7 @@ Alles werkt meteen; login/betalen tonen nette meldingen i.p.v. te crashen.
 1. Gratis project op supabase.com, keys in `.env.local` (kopieer `.env.example`).
 2. Voer `supabase/schema.sql` én de bestanden in `supabase/migraties/` uit in
    de Supabase SQL editor (in datumvolgorde).
-3. Stripe test-account, product "VrijBaan Pro", keys in `.env.local`.
+3. Stripe test-account, product "VrijeBaan Pro", keys in `.env.local`.
 4. Lokaal webhook testen: `stripe listen --forward-to localhost:3000/api/webhook`.
 
 ## Docker
