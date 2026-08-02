@@ -22,7 +22,7 @@ import { CLUBS } from "./clubs";
 import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie } from "./geo";
 import { binnenTijdvenster, dagLabel, naarMinuten, rondAfOpHalfUur } from "./tijd";
 
-const STRAAL_ADHOC_KM = 15;
+const STRAAL_ADHOC_KM = 10;
 // Zelfde soort grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts,
 // hier kleiner gehouden: een chatbericht met 20 clubs is niet leesbaar, en
 // elke Playtomic/Meet & Play-club in de lijst kost een aparte Playwright-run.
@@ -70,6 +70,12 @@ const TIJD_PATRONEN = [
   /\b([01]?\d|2[0-3])u([0-5]\d)\b/i, // 20u30
   /\b([01]?\d|2[0-3])u\b/i, // 20u
   /\b([01]?\d|2[0-3])\s*uur\b/i, // 20 uur
+  /\b(?:om|rond)\s+([01]?\d|2[0-3])\b/i, // "om 11", "rond 9" — geen minuten, dus later dan de exactere patronen hierboven
+  // Kale 4 cijfers als "1100" (Xander, 2 aug 2026: "Morgen ochtend 1100
+  // padellen Rijswijk" werd niet herkend). Bewust beperkt tot uur 00-19 om
+  // een jaartal als "2026" niet als "20:26" te lezen — avonduren na 20:00
+  // worden al door de "20u"/"20 uur"/"20:00"-patronen hierboven afgevangen.
+  /\b([01]\d)([0-5]\d)\b/,
 ];
 
 /**
@@ -98,18 +104,47 @@ export function extraheerDag(tekst: string): number | null {
   return null;
 }
 
+// Woorden die overblijven na het wegstrippen van dag/tijd uit een
+// zoekopdracht, maar zelf geen plaatsnaam zijn. Bewust een losse lijst i.p.v.
+// een taalmodel (Xander, 2 aug 2026: koos expliciet voor een gratis,
+// snellere parser i.p.v. een Claude-API-aanroep per bericht).
+const PLAATS_STOPWOORDEN = new Set([
+  "zoek", "zoeken", "zoekt", "een", "de", "het", "baan", "banen", "padellen",
+  "padelen", "padel", "rond", "om", "in", "bij", "voor", "ochtend", "middag",
+  "avond", "vanavond", "alsjeblieft", "aub", "graag", "wil", "wilt", "ik",
+  "je", "plek", "plekje", "plekjes", "vrije", "vrij", "spelen", "speel", "en",
+]);
+
 /**
- * Plaatsnaam na "in"/"bij", tot aan een tijdsaanduiding, een bekend
- * stopwoord, leestekens, of het einde van de zin. Vereist expliciet "in"/
- * "bij" i.p.v. te gokken welk woord een plaatsnaam is — dat laten we aan
- * PDOK over, en die krijgt dan een schone zoekterm.
+ * Plaatsnaam uit vrije tekst. Twee stappen:
+ * 1. Het strikte patroon "in/bij <plaats>" — meest betrouwbaar, dus eerst
+ *    geprobeerd.
+ * 2. Anders: dag, tijd en bekende vulwoorden wegstrippen en aannemen dat wat
+ *    overblijft de plaatsnaam is. Nodig omdat lang niet iedereen "in/bij"
+ *    typt (Xander, 2 aug 2026: "Morgen ochtend 1100 padellen Rijswijk" en
+ *    "Padellen Rijswijk morgen 11:00" werden allebei niet herkend). Alleen
+ *    toegepast als het bericht al een padel/tijd/dag-signaal bevat, anders
+ *    zou elk willekeurig chatbericht als zoekopdracht gelezen worden.
  */
 export function extraheerPlaats(tekst: string): string | null {
-  const m =
+  const expliciet =
     /\b(?:in|bij)\s+([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ\s'-]{1,40}?)(?=\s+(?:rond|om|vanavond|vandaag|morgen|overmorgen)\b|[.,!?]|\s+\d|$)/i.exec(
       tekst
     );
-  return m ? m[1].trim() : null;
+  if (expliciet) return expliciet[1].trim();
+
+  const heeftSignaal = /padel|baan/i.test(tekst) || extraheerTijd(tekst) !== null || extraheerDag(tekst) !== null;
+  if (!heeftSignaal) return null;
+
+  let rest = tekst.replace(/\bovermorgen\b/gi, " ").replace(/\bmorgen\b/gi, " ").replace(/\bvandaag\b/gi, " ");
+  for (const patroon of TIJD_PATRONEN) {
+    rest = rest.replace(new RegExp(patroon.source, patroon.flags.includes("g") ? patroon.flags : `${patroon.flags}g`), " ");
+  }
+  rest = rest.replace(/[.,!?]/g, " ");
+
+  const woorden = rest.split(/\s+/).filter((w) => w.length > 0 && !PLAATS_STOPWOORDEN.has(w.toLowerCase()));
+  if (woorden.length === 0) return null;
+  return woorden.join(" ").trim();
 }
 
 export type AdhocZoekopdracht = { plaatsQuery: string; tijd: string | null; dagOffset: number | null };
