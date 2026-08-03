@@ -882,3 +882,49 @@ vervanging.
    live devtools-onderzoek van het profielscherm, niet op aannames.
 6. Wachtwoord-handling expliciet testen/reviewen voordat dit live gaat —
    dit is de gevoeligste stap in het hele project tot nu toe.
+
+## 11. Migratie van Vercel naar eigen VPS (3 aug 2026)
+
+**Bevestigd (3 aug 2026)**: devrijebaan.nl draait nu volledig op de eigen
+TransIP-VPS (`xander8714-vps`, Ubuntu 26.04, 85.10.139.24), niet meer op
+Vercel. Dit lost het kernprobleem definitief op: Vercel's serverless-
+functies kunnen geen Playwright/Chromium draaien (vastgesteld eerder deze
+sessie), waardoor Playtomic- en Meet & Play-clubs op Vercel altijd
+"geen tijden geladen" gaven — alleen Foys/Peakz (een directe HTTP-call,
+geen browser nodig) werkte.
+
+**Opzet:**
+- Next.js draait via `output: "standalone"` als systemd-service
+  (`vrijebaan.service`) achter nginx (reverse proxy + gratis Let's
+  Encrypt-certificaat via certbot, automatische vernieuwing).
+- `scripts/poll-availability.ts` draait niet meer handmatig maar via een
+  systemd-timer (`vrijebaan-poll.timer`), elke 5 minuten — dit is de
+  achtergrond-poller voor Telegram-notificaties en wekelijkse
+  herinneringen, die op Vercel sowieso nooit had kunnen draaien.
+- DNS voor devrijebaan.nl (bij TransIP zelf, `@` en `*` A/AAAA-records)
+  wijst nu naar de VPS. UFW-firewall staat aan (alleen 22/80/443 open).
+- Supabase Auth "URL Configuration" stond nog volledig leeg (Site URL op
+  `http://localhost:3000`, geen Redirect URLs) — hierdoor werkte de
+  Telegram-sessiebrug (2 aug) en de wachtwoord-reset-flow in productie
+  waarschijnlijk nooit correct. Nu gezet op `https://devrijebaan.nl` +
+  wildcard-redirect-URLs voor dat domein en localhost.
+- De Telegram-webhook (`setWebhook`) stond nog op de oude
+  `vrijbaan.vercel.app`-URL — bijgewerkt naar `https://devrijebaan.nl/api/
+  telegram/webhook`.
+
+**Bug gevonden en gefixt direct na de eerste deploy**: `/api/beschikbaarheid`
+gaf op de VPS ook alleen Peakz/Foys-data terug — dezelfde symptomen als op
+Vercel, maar nu door een andere oorzaak. Next.js' standalone-output-tracing
+kopieert een uitgedunde `node_modules` naar `.next/standalone/`, en mist
+daarbij niet-JS-bestanden van `playwright-core` (zoals `browsers.json`) die
+via `fs` i.p.v. `require` geladen worden — de tracer volgt die niet. Elke
+Playtomic/Meet & Play-aanvraag faalde met "Cannot find module .../
+browsers.json". Fix: na elke build de complete `playwright`/`playwright-core`-
+mappen uit de gewone `node_modules` over de uitgedunde standalone-kopie heen
+kopiëren. Vastgelegd in `scripts/deploy-vps.sh`, zodat dit niet bij een
+volgende deploy weer stilzwijgend terugkomt.
+
+**Nog niet gedaan**: de Vercel-deployment zelf opzeggen/verwijderen (kan
+gerust blijven staan als dode/dormant fallback, kost niets extra zolang er
+geen custom domain aan hangt) en het Stripe-checkoutpad testen (staat nog
+uit tot 2027, zie de prijzenpagina-wijziging van vandaag).
