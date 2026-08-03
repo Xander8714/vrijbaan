@@ -18,9 +18,11 @@
  * "Geen tijden geladen" en worden hier stilzwijgend overgeslagen (niet als
  * "geen plek" gemeld, dat zou onwaar zijn).
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { CLUBS } from "./clubs";
 import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie } from "./geo";
 import { binnenTijdvenster, dagLabel, naarMinuten, rondAfOpHalfUur } from "./tijd";
+import { bouwSessieLink, maakInlogToken } from "./telegramSessie";
 
 const STRAAL_ADHOC_KM = 10;
 // Zelfde soort grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts,
@@ -177,7 +179,12 @@ export async function zoekBeschikbaarheidVoorChat(
   plaatsnaam: string,
   tijd: string | null,
   siteUrl: string,
-  dagOffsetUitTekst: number | null = null
+  dagOffsetUitTekst: number | null = null,
+  // Optioneel: geeft de radarlink mee via de sessiebrug (src/lib/telegramSessie.ts)
+  // zodat een klik vanuit Telegram direct ingelogd binnenkomt. Zonder deze
+  // param (bv. in tests) blijft het een kale, uitgelogde link — zoeken werkt
+  // sowieso zonder account.
+  sessieBrug: { admin: SupabaseClient; profielId: string } | null = null
 ): Promise<string> {
   const inStraal = binnenStraal(CLUBS, coord, STRAAL_ADHOC_KM).slice(0, MAX_CLUBS_ADHOC);
   if (inStraal.length === 0) {
@@ -197,7 +204,18 @@ export async function zoekBeschikbaarheidVoorChat(
   // Bewust naar de eigen site, niet naar de boekingssystemen zelf — een
   // gebruiker die via de bot zoekt, boekt zo via VrijeBaan i.p.v. dat de
   // click meteen naar een externe site gaat.
-  const radarLink = `${siteUrl}/radar?${linkParams.toString()}`;
+  const radarPad = `/radar?${linkParams.toString()}`;
+  let radarLink = `${siteUrl}${radarPad}`;
+  if (sessieBrug) {
+    try {
+      const token = await maakInlogToken(sessieBrug.admin, sessieBrug.profielId);
+      radarLink = bouwSessieLink(siteUrl, token, radarPad);
+    } catch (err) {
+      // Nooit de zoekopdracht laten mislukken omdat het inloggen-optimaliseren
+      // faalt — de kale link werkt nog steeds, alleen niet automatisch ingelogd.
+      console.error("[telegram] Inlogtoken voor radarlink maken mislukt, val terug op kale link:", err);
+    }
+  }
 
   let data: { beschikbaarheid: BeschikbaarheidRij[] };
   try {

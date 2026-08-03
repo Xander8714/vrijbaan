@@ -54,6 +54,14 @@ export type Profiel = {
   // Genormaliseerd als +316XXXXXXXX (zie src/lib/telefoon.ts) — optioneel,
   // voor toekomstige sms/WhatsApp-notificaties.
   telefoon: string | null;
+  // Vast speelmoment (bv. "elke dinsdag 20:00") voor de wekelijkse
+  // herinnering — zie scripts/poll-availability.ts. terugkerendeDag volgt
+  // JS Date#getDay() (0=zondag..6=zaterdag); null = functie uit. Los van
+  // deze twee samen kan voorkeurstijd ook via de Telegram-bot-onboarding
+  // gezet zijn zonder een vaste dag (dan alleen voor het algemene
+  // gebied+tijd-matchen van gewone meldingen, geen wekelijkse herinnering).
+  voorkeurstijd: string | null;
+  terugkerendeDag: number | null;
 };
 export type Player = { id: string; naam: string; speelsterkte: number; bondsnummer?: string; };
 export type Pair = { spelers: [Player, Player]; gemSterkte: number; };

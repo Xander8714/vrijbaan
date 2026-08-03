@@ -159,7 +159,8 @@ export async function POST(req: NextRequest) {
         naam,
         opgeslagen?.tijd ?? null,
         SITE_URL,
-        opgeslagen?.dagOffset ?? null
+        opgeslagen?.dagOffset ?? null,
+        { admin, profielId: profiel.id }
       );
       await stuurTelegramBericht(chatId, antwoord);
       return NextResponse.json({ ok: true });

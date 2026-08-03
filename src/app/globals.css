@@ -97,9 +97,16 @@ body {
  * gebruikt zodra dit bestand er was.
  *
  * Een lichte gradient erbovenop houdt lopende tekst in kaarten leesbaar.
- * `background-attachment: fixed` + `background-size: cover` +
- * `no-repeat` = precies één keer getoond, niet getegeld. Toegepast op
- * <body>, dus elke pagina erft 'm.
+ * `background-size: cover` + `no-repeat` = precies één keer getoond, niet
+ * getegeld. Toegepast op <body>, dus elke pagina erft 'm.
+ *
+ * GEEN `background-attachment: fixed` (verwijderd 3 aug 2026, Xander:
+ * "scrollen met de muis werkt tegenovergesteld en de pagina wordt wit") —
+ * `fixed` + `cover` op een grote foto is een bekende oorzaak van precies dit:
+ * de browser moet de achtergrond bij elke scrollframe herberekenen, wat op
+ * meerdere GPU's/browsers voelt als haperende of omgekeerde scroll met een
+ * witte flits tijdens het hertekenen. De standaard `scroll`-waarde (de foto
+ * schuift gewoon mee) is onopvallend qua uiterlijk maar wél betrouwbaar.
  */
 .baan-achtergrond-licht {
   background-image:
@@ -108,7 +115,6 @@ body {
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;
-  background-attachment: fixed;
 }
 
 /*
