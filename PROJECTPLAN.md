@@ -928,3 +928,19 @@ volgende deploy weer stilzwijgend terugkomt.
 gerust blijven staan als dode/dormant fallback, kost niets extra zolang er
 geen custom domain aan hangt) en het Stripe-checkoutpad testen (staat nog
 uit tot 2027, zie de prijzenpagina-wijziging van vandaag).
+
+## 12. Notificatielogica teruggedraaid naar alleen gevolgde clubs (3 aug 2026)
+
+**Correctie (3 aug 2026)**: de "Fase 2"-uitbreiding van 2 aug 2026 (zie
+git-historie van `scripts/poll-availability.ts`) voegde een tweede manier
+toe om een melding te verdienen: elke club binnen iemands zoekstraal, mits
+het nieuwe slot bij de voorkeurstijd paste — ook als die club nooit
+expliciet gevolgd was. Xander (3 aug 2026): "het slaat nergens op altijd
+berichtjes te krijgen, alleen bij favorieten en alleen als het past bij je
+voorkeurstijd." Teruggedraaid: een "nieuw slot"-melding gaat nu weer
+alleen naar wie de club expliciet volgt (Radar, "Volg deze club"), en
+alleen als het nieuwe slot binnen de tijdsmarge van diens voorkeurstijd
+valt (geen voorkeurstijd ingesteld = geen tijdsfilter). `haalGebiedProfielen`/
+`clubsInGebied` zijn verwijderd; de te pollen clubselectie is weer
+"gevolgd + rotatiebatch" zonder gebied-uitbreiding. De uitleg op
+`/telegram` (sectie 3) is bijgewerkt om dit correct te beschrijven.

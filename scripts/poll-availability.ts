@@ -42,19 +42,19 @@
  * als vaste test-/adminchat die ALTIJD een kopie krijgt, los van wie er
  * gekoppeld is.
  *
- * TWEE MANIEREN OM EEN NOTIFICATIE TE VERDIENEN (2 aug 2026, Fase 2 — de
- * eerdere "latere fase"-notitie hier is hiermee ingehaald):
- * 1. Expliciet volgen (gevolgde_clubs, Radar-knop "Volg deze club") — altijd
- *    een melding bij een nieuw slot, ongeacht tijd.
- * 2. Gebied + voorkeurstijd (profiles.lat/lon/zoekstraal_km/voorkeurstijd,
- *    ingevuld via de Telegram-bot-onboarding of het Account-profiel) — een
- *    melding zodra een club BINNEN de straal een nieuw slot krijgt dat past
- *    bij de voorkeurstijd (± MARGE_UREN_MELDING), ook als die specifieke
- *    club nooit expliciet gevolgd is. Geen voorkeurstijd ingesteld = elk
- *    nieuw slot binnen de straal telt.
- * Zie haalOntvangersPerClub/stuurNotificatiesVoorClub. Dit betekent ook dat
- * de te pollen clubselectie hieronder nu behalve gevolgde clubs ook clubs
- * binnen iemands straal meeneemt (naast gevolgd) — zie clubsInGebied.
+ * NOTIFICATIES ALLEEN VOOR GEVOLGDE CLUBS (3 aug 2026-correctie — de eerdere
+ * "Fase 2"-uitbreiding hieronder (gebied+voorkeurstijd, ook zonder volgen)
+ * is hiermee weer teruggedraaid). Xander: "het slaat nergens op altijd
+ * berichtjes te krijgen, alleen bij favorieten en alleen als het past bij
+ * je voorkeurstijd." Een "nieuw slot"-melding gaat dus alleen naar wie de
+ * club expliciet volgt (gevolgde_clubs, Radar-knop "Volg deze club"), én
+ * alleen als het nieuwe slot binnen MARGE_UREN_MELDING van zijn
+ * voorkeurstijd valt (geen voorkeurstijd ingesteld = geen tijdsfilter, elk
+ * nieuw slot bij een gevolgde club telt dan gewoon). Gebied/straal bepaalt
+ * hier niets meer — dat leverde ongevraagde meldingen op voor clubs die
+ * iemand nooit gevolgd had. Zie haalOntvangersPerClub/
+ * stuurNotificatiesVoorClub. De te pollen clubselectie hieronder blijft dus
+ * gewoon "gevolgd + rotatiebatch", geen aparte gebied-uitbreiding.
  *
  * WEKELIJKSE HERINNERING (3 aug 2026, uitgebreid tot meerdere momenten per
  * gebruiker): los van de "nieuw slot"-meldingen hierboven — elk vast
@@ -92,7 +92,7 @@ import { supabaseAdmin } from "../src/lib/supabase/admin";
 import { hashSlots, nieuweSlotenSinds, type Slot } from "../src/lib/availabilityDiff";
 import { boekingsBestemming } from "../src/lib/boekingsLink";
 import { formatEuro } from "../src/lib/geld";
-import { afgerondeAfstand, binnenStraal } from "../src/lib/geo";
+import { binnenStraal } from "../src/lib/geo";
 import { binnenTijdvenster, naarMinuten } from "../src/lib/tijd";
 import { stuurTelegramBericht } from "../src/lib/telegram";
 import { bouwSessieLink, maakInlogToken } from "../src/lib/telegramSessie";
@@ -158,68 +158,18 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.ap
 /** Eén reden om een melding te krijgen. voorkeurstijd: null = geen tijdsfilter (altijd melden). */
 type Ontvanger = { chatId: number; voorkeurstijd: string | null };
 
-type GebiedProfiel = {
-  chatId: number;
-  lat: number;
-  lon: number;
-  straalKm: number;
-  voorkeurstijd: string | null;
-};
-
 /**
- * Alle gekoppelde profielen met een bekende locatie (via de Telegram-bot-
- * onboarding of het Account-profiel) — de basis voor gebied-matching, zowel
- * hier (welke ontvangers per club) als in main() (welke clubs sowieso pollen
- * omdat ze binnen iemands straal liggen, ook zonder dat iemand ze volgt).
- */
-async function haalGebiedProfielen(): Promise<GebiedProfiel[]> {
-  const supabase = supabaseAdmin();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("telegram_chat_id, lat, lon, zoekstraal_km, voorkeurstijd")
-    .not("telegram_chat_id", "is", null)
-    .not("lat", "is", null)
-    .not("lon", "is", null);
-  if (error) {
-    console.error("[telegram] Kon gebiedsprofielen niet ophalen — gebied-matching wordt deze ronde overgeslagen:", error.message);
-    return [];
-  }
-  return (data ?? []).map((p) => ({
-    chatId: p.telegram_chat_id as number,
-    lat: p.lat as number,
-    lon: p.lon as number,
-    straalKm: (p.zoekstraal_km as number) ?? 10,
-    voorkeurstijd: (p.voorkeurstijd as string | null) ?? null,
-  }));
-}
-
-/** Clubs binnen de straal van minstens één gebiedsprofiel — deze moeten gepolld worden ook als niemand ze expliciet volgt. */
-function clubsInGebied(gebiedProfielen: GebiedProfiel[], pollbareIds: string[]): Set<string> {
-  const resultaat = new Set<string>();
-  if (gebiedProfielen.length === 0) return resultaat;
-  for (const id of pollbareIds) {
-    const club = CLUBS.find((c) => c.id === id);
-    if (!club) continue;
-    if (gebiedProfielen.some((p) => afgerondeAfstand(p, club) <= p.straalKm)) resultaat.add(id);
-  }
-  return resultaat;
-}
-
-/**
- * Twee bronnen van ontvangers per club — zie de moduledocstring: (1) wie de
- * club expliciet volgt (gevolgde_clubs, altijd melden), en (2) wie de club
- * binnen zijn straal heeft staan (gebiedsprofiel, alleen melden als een
- * nieuw slot bij de voorkeurstijd past — zie stuurNotificatiesVoorClub).
- * Eén gebruiker kan voor dezelfde club in beide categorieën zitten; dat is
- * geen probleem, stuurNotificatiesVoorClub dedupliceert op chat_id.
+ * Ontvangers per club: alleen wie de club expliciet volgt (gevolgde_clubs,
+ * Radar-knop "Volg deze club") — zie de moduledocstring voor de 3 aug
+ * 2026-correctie die de gebied-gebaseerde uitbreiding weer heeft
+ * teruggedraaid. voorkeurstijd komt gewoon uit het profiel van de volger
+ * (null = geen tijdsfilter, elk nieuw slot bij deze club telt dan) en wordt
+ * pas toegepast in stuurNotificatiesVoorClub.
  */
 async function haalOntvangersPerClub(): Promise<Map<string, Ontvanger[]>> {
   const supabase = supabaseAdmin();
   const [{ data: gekoppeldeProfielen, error: profielFout }, { data: volgend, error: volgFout }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, telegram_chat_id, lat, lon, zoekstraal_km, voorkeurstijd")
-      .not("telegram_chat_id", "is", null),
+    supabase.from("profiles").select("id, telegram_chat_id, voorkeurstijd").not("telegram_chat_id", "is", null),
     supabase.from("gevolgde_clubs").select("user_id, club_id"),
   ]);
   if (profielFout || volgFout) {
@@ -231,32 +181,16 @@ async function haalOntvangersPerClub(): Promise<Map<string, Ontvanger[]>> {
   }
 
   const kaart = new Map<string, Ontvanger[]>();
-  const voegToe = (clubId: string, ontvanger: Ontvanger) => {
-    const lijst = kaart.get(clubId) ?? [];
-    lijst.push(ontvanger);
-    kaart.set(clubId, lijst);
-  };
-
   const profielPerGebruiker = new Map((gekoppeldeProfielen ?? []).map((p) => [p.id as string, p]));
   for (const rij of volgend ?? []) {
     const profiel = profielPerGebruiker.get(rij.user_id as string);
     if (!profiel) continue;
-    voegToe(rij.club_id as string, { chatId: profiel.telegram_chat_id as number, voorkeurstijd: null });
-  }
-
-  for (const profiel of gekoppeldeProfielen ?? []) {
-    if (profiel.lat == null || profiel.lon == null) continue;
-    const straal = (profiel.zoekstraal_km as number) ?? 10;
-    const punt = { lat: profiel.lat as number, lon: profiel.lon as number };
-    for (const club of CLUBS) {
-      if (!(club.id in POLL_CONFIG)) continue;
-      if (afgerondeAfstand(punt, club) <= straal) {
-        voegToe(club.id, {
-          chatId: profiel.telegram_chat_id as number,
-          voorkeurstijd: (profiel.voorkeurstijd as string | null) ?? null,
-        });
-      }
-    }
+    const lijst = kaart.get(rij.club_id as string) ?? [];
+    lijst.push({
+      chatId: profiel.telegram_chat_id as number,
+      voorkeurstijd: (profiel.voorkeurstijd as string | null) ?? null,
+    });
+    kaart.set(rij.club_id as string, lijst);
   }
 
   return kaart;
@@ -277,10 +211,10 @@ function bouwNotificatieBericht(club: Club | undefined, clubId: string, datum: s
  * los bericht per slot) naar elke ontvanger die dit slot verdient, plus
  * optioneel naar TELEGRAM_CHAT_ID als vaste test-/adminchat.
  *
- * Een expliciete volger (voorkeurstijd: null) krijgt altijd bericht. Een
- * gebied-match krijgt alleen bericht als minstens één nieuw slot binnen
- * MARGE_UREN_MELDING van zijn voorkeurstijd valt — geen voorkeurstijd
- * ingesteld telt hier ook als "altijd melden" (voorkeurstijd is dan null).
+ * Alle ontvangers hier volgen deze club al expliciet (zie
+ * haalOntvangersPerClub) — wat nog filtert is de voorkeurstijd: geen
+ * voorkeurstijd ingesteld (null) = altijd melden, anders alleen als
+ * minstens één nieuw slot binnen MARGE_UREN_MELDING van die voorkeurstijd valt.
  */
 async function stuurNotificatiesVoorClub(
   club: Club | undefined,
@@ -594,10 +528,7 @@ async function main(): Promise<void> {
   const alleGeforceerd = process.argv.includes("--alles");
   const pollbareIds = Object.keys(POLL_CONFIG);
 
-  // Ontvangers/gebiedsprofielen sowieso ophalen: ook nodig om te bepalen
-  // wélke clubs meepollen (clubsInGebied), niet alleen om straks te melden.
   const ontvangersPerClub = await haalOntvangersPerClub();
-  const gebiedProfielen = await haalGebiedProfielen();
 
   let teVerwerken: string[];
   if (alleGeforceerd) {
@@ -605,26 +536,20 @@ async function main(): Promise<void> {
     console.log(`[selectie] --alles opgegeven: alle ${teVerwerken.length} pollbare clubs (traag, alleen voor test).`);
   } else {
     const gevolgd = await haalGevolgdeClubIds();
-    const gebiedClubs = clubsInGebied(gebiedProfielen, pollbareIds);
-    // "Belangrijk" = een reden om altijd te pollen, los van de rotatie:
-    // gevolgd óf binnen iemands straal (zie de moduledocstring, Fase 2).
-    const belangrijk = new Set([...gevolgd, ...gebiedClubs]);
-    const belangrijkPollbaar = pollbareIds.filter((id) => belangrijk.has(id));
-    const nietBelangrijkPollbaar = pollbareIds.filter((id) => !belangrijk.has(id));
-    const rotatie = kiesRotatieBatch(nietBelangrijkPollbaar, vandaag);
-    teVerwerken = [...new Set([...belangrijkPollbaar, ...rotatie])];
+    const gevolgdPollbaar = pollbareIds.filter((id) => gevolgd.has(id));
+    const nietGevolgdPollbaar = pollbareIds.filter((id) => !gevolgd.has(id));
+    const rotatie = kiesRotatieBatch(nietGevolgdPollbaar, vandaag);
+    teVerwerken = [...new Set([...gevolgdPollbaar, ...rotatie])];
     console.log(
-      `[selectie] ${gevolgd.size} gevolgd + ${gebiedClubs.size} binnen iemands straal ` +
-        `(${belangrijkPollbaar.length} uniek) + ${rotatie.length} uit de rotatiebatch ` +
-        `(van ${nietBelangrijkPollbaar.length} overige pollbare clubs) = ${teVerwerken.length} totaal, ` +
-        `× ${dagen.length} dagen.`
+      `[selectie] ${gevolgd.size} gevolgd (${gevolgdPollbaar.length} pollbaar) + ${rotatie.length} uit de rotatiebatch ` +
+        `(van ${nietGevolgdPollbaar.length} overige pollbare clubs) = ${teVerwerken.length} totaal, × ${dagen.length} dagen.`
     );
   }
 
   const totaalOntvangers = new Set([...ontvangersPerClub.values()].flat().map((o) => o.chatId)).size;
   console.log(
-    `[telegram] ${totaalOntvangers} gebruiker(s) met Telegram gekoppeld ` +
-      `(${gebiedProfielen.length} met een locatie ingesteld), verspreid over ${ontvangersPerClub.size} club(s).`
+    `[telegram] ${totaalOntvangers} gebruiker(s) met Telegram gekoppeld die minstens één club volgen, ` +
+      `verspreid over ${ontvangersPerClub.size} club(s).`
   );
 
   for (const clubId of teVerwerken) {

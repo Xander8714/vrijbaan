@@ -69,19 +69,19 @@ export default function TelegramPage() {
         <h2 className="text-xl font-semibold text-slate-900">3. Vaste speelmomenten &amp; meldingen</h2>
         <p className="mt-2 text-sm text-slate-600">
           Speel je altijd op dezelfde dag en tijd? Dat stel je in op je{" "}
-          <Link href="/account" className="text-court-700 underline">accountpagina</Link> onder &quot;Vaste
-          speelmomenten&quot; — niet via de chat, want daar is een lijstje met dag, tijd en een aan/uit-vinkje net iets
-          overzichtelijker. Voor elk moment met het vinkje aan checkt VrijeBaan ruim na die tijd automatisch of
-          hetzelfde moment volgende week ook vrij is, en stuurt je bot dan een berichtje met een link.
+          <Link href="/account" className="text-court-700 underline">accountpagina</Link>{" "}
+          onder &quot;Vaste speelmomenten&quot; — niet via de chat, want daar is een lijstje met dag, tijd en een
+          aan/uit-vinkje net iets overzichtelijker. Voor elk moment met het vinkje aan checkt VrijeBaan ruim na die
+          tijd automatisch of hetzelfde moment volgende week ook vrij is, en stuurt je bot dan een berichtje met een
+          link.
         </p>
         <p className="mt-3 text-sm text-slate-600">
-          Daarnaast krijg je automatisch een melding zodra er een nieuwe plek vrijkomt bij:
+          Daarnaast krijg je automatisch een melding zodra er een nieuwe plek vrijkomt bij een club die je op de{" "}
+          <Link href="/radar" className="text-court-700 underline">Radar</Link>{" "}
+          volgt (&quot;Volg deze club&quot;) — en dan alleen als het nieuwe slot in de buurt van je voorkeurstijd
+          valt (geen voorkeurstijd ingesteld? dan telt elk nieuw slot bij die club). Clubs die je niet volgt leveren
+          nooit een melding op, ook niet als ze in je buurt liggen.
         </p>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-          <li>een club die je op de <Link href="/radar" className="text-court-700 underline">Radar</Link> volgt (&quot;Volg
-            deze club&quot;) — altijd, ongeacht tijd;</li>
-          <li>elke andere club binnen je zoekstraal, als het nieuwe slot in de buurt van je voorkeurstijd valt.</li>
-        </ul>
       </section>
 
       <section className="mt-10">
@@ -108,7 +108,7 @@ export default function TelegramPage() {
                 <td className="px-4 py-2"><Link href="/account" className="text-court-700 underline">Account</Link></td>
               </tr>
               <tr>
-                <td className="px-4 py-2">Club volgen voor altijd-melden</td>
+                <td className="px-4 py-2">Club volgen voor meldingen bij nieuwe sloten</td>
                 <td className="px-4 py-2"><Link href="/radar" className="text-court-700 underline">Radar</Link></td>
               </tr>
             </tbody>

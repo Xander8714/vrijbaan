@@ -51,6 +51,15 @@ export default function HelpPage() {
           ))}
         </div>
       </section>
+      <section className="mt-10 rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="text-xl font-semibold text-slate-900">Contact</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Vraag over hoe iets werkt, een bug gevonden, of iets anders?{" "}
+          <a href="mailto:support@devrijebaan.nl" className="text-court-700 underline">support@devrijebaan.nl</a>.
+          Voor algemene vragen, samenwerkingen of iets anders:{" "}
+          <a href="mailto:info@devrijebaan.nl" className="text-court-700 underline">info@devrijebaan.nl</a>.
+        </p>
+      </section>
     </main>
   );
 }
