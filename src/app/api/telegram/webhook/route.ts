@@ -154,6 +154,11 @@ export async function POST(req: NextRequest) {
 
     if (profiel.telegram_onboarding_stap === "wacht_locatie_adhoc") {
       await admin.from("profiles").update({ telegram_onboarding_stap: null, telegram_kandidaten: null }).eq("id", profiel.id);
+      // Zonder dit bericht lijkt de bot na een klik niets te doen — Xander (3
+      // aug 2026): "geef een klik bevestiging terug". zoekBeschikbaarheidVoorChat
+      // hieronder kan tientallen seconden duren (Playwright per club), dus de
+      // gebruiker moet weten dat de klik is aangekomen vóór het echte antwoord er is.
+      await stuurTelegramBericht(chatId, `${naam} gekozen — nu op zoek naar banen…`);
       const antwoord = await zoekBeschikbaarheidVoorChat(
         kandidaat,
         naam,
