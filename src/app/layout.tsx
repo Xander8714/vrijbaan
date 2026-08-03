@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navigatie from "@/components/Navigatie";
+import Footer from "@/components/Footer";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 // NEXT_PUBLIC_SITE_URL staat al in .env.local (voor de Telegram-deep-link) —
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="baan-achtergrond-licht bg-court-50 antialiased">
         <Navigatie />
         {children}
+        <Footer />
         <GoogleAnalytics />
       </body>
     </html>

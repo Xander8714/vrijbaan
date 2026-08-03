@@ -2,10 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CLUBS, LEDEN_CLUBS } from "@/lib/clubs";
-import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
-import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
+import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
 import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
@@ -274,12 +273,23 @@ export default function RadarPage() {
     [lidVan]
   );
 
-  // Op afstand filteren. Dit bepaalt óók welke clubs we live opvragen, dus het
-  // moet vóór dat effect staan.
+  /**
+   * Op afstand filteren. Dit bepaalt óók welke clubs we live opvragen, dus het
+   * moet vóór dat effect staan.
+   *
+   * Gevolgde clubs vallen NOOIT buiten dit filter, ook al liggen ze verder
+   * dan de ingestelde straal — Xander (3 aug 2026): "gevolgde clubs altijd
+   * tonen". Een club volgen is een expliciete keuze; die verliezen zodra je
+   * straal toevallig kleiner staat zou een melding op de Radar onvindbaar
+   * maken.
+   */
   const clubsInStraal = useMemo(() => {
     if (!zoekgebied || negeerStraal) return kandidaatClubs.map((club) => ({ ...club, afstandKm: null as number | null }));
-    return binnenStraal(kandidaatClubs, { lat: zoekgebied.lat, lon: zoekgebied.lon }, straalKm);
-  }, [kandidaatClubs, zoekgebied, straalKm, negeerStraal]);
+    return kandidaatClubs
+      .map((club) => ({ ...club, afstandKm: afgerondeAfstand({ lat: zoekgebied.lat, lon: zoekgebied.lon }, club) }))
+      .filter((club) => club.afstandKm <= straalKm || gevolgd.has(club.id))
+      .sort((a, b) => a.afstandKm - b.afstandKm);
+  }, [kandidaatClubs, zoekgebied, straalKm, negeerStraal, gevolgd]);
 
   /**
    * Beschikbaarheid halen we op voor precies de clubs die na het straal-filter
@@ -676,7 +686,6 @@ export default function RadarPage() {
       <div className="mt-3 space-y-3">
         {zichtbareClubs.map((club) => {
           const isGevolgd = gevolgd.has(club.id);
-          const wordtGepolled = club.id in POLL_CONFIG;
           return (
             <div key={club.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-4">
@@ -702,12 +711,6 @@ export default function RadarPage() {
                   )}
                   {club.meting?.fout && (
                     <p className="mt-1 text-xs text-amber-700">{club.meting.fout}</p>
-                  )}
-                  {!club.meting && !metingBezig && (
-                    <p className="mt-1 text-xs text-amber-700">
-                      {club.status}
-                      {wordtGepolled ? " · nog niet opgevraagd" : " · nog niet gekoppeld"}
-                    </p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">

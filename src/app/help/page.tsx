@@ -8,10 +8,25 @@ export const metadata: Metadata = {
 };
 
 const usecases = [
-  { titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club", stappen: ["Ga naar Radar.", "Klik 'Volg deze club' bij één of meerdere clubs.", "Koppel je Telegram op je account, dan krijg je daar een berichtje zodra er een slot vrijkomt."] },
-  { titel: "Ik wil vanuit Telegram zelf een baan zoeken", stappen: ["Koppel de bot via je account.", "Typ in de chat gewoon iets als 'zoek een baan in Haarlem rond 20:00'.", "Zie de bot-pagina voor meer voorbeelden en wat de bot verder allemaal kan."] },
+  {
+    titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club",
+    stappen: [
+      "Ga naar Radar en klik bij één of meerdere clubs op 'Volg deze club'.",
+      "Klik op je accountpagina op 'Koppel Telegram' — dit opent Telegram automatisch bij onze bot (@vrijbaan_notify_bot). Druk daar op Start.",
+      "Klaar: je krijgt daar automatisch een berichtje zodra er bij een gevolgde club een nieuw slot vrijkomt.",
+    ],
+  },
+  {
+    titel: "Ik wil vanuit Telegram zelf een baan zoeken",
+    stappen: [
+      "Koppel de bot eerst via je accountpagina (zie hierboven) — daarna typ je gewoon in diezelfde chat.",
+      "Typ iets als 'zoek een baan in Haarlem rond 20:00'.",
+      "Zie de Telegram-uitlegpagina voor meer voorbeelden en alles wat de bot verder kan.",
+    ],
+  },
 ];
 const faq = [
+  { vraag: "Wat moet ik in Telegram zoeken om bij de bot te komen?", antwoord: "Meestal hoef je niks te zoeken: de knop 'Koppel Telegram' op je accountpagina opent Telegram automatisch bij de juiste bot. Werkt die link niet (bv. je zit al in de Telegram-app op een ander toestel), zoek dan zelf naar @vrijbaan_notify_bot en druk op Start." },
   { vraag: "Wat betekent speelsterkte 1 tot 9?", antwoord: "De officiële KNLTB-schaal: 1 is sterkste, 9 is beginnend. Het sterkste koppel speelt wedstrijd 1." },
   { vraag: "Kan ik de app op mijn telefoon zetten?", antwoord: "Ja — open de site in je mobiele browser en kies 'Toevoegen aan beginscherm'." },
   { vraag: "Wat kost het?", antwoord: "Dit jaar (2026) is alles volledig gratis — we testen nog met een kleine groep. Zie de prijzenpagina voor het plan vanaf 2027." },

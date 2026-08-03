@@ -316,12 +316,16 @@ async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
 // laatste_herinnering_op (per moment, niet per profiel — zie hieronder)
 // voorkomt dubbel versturen binnen dezelfde dag.
 //
-// TIJDZONE-KANTTEKENING: net als de rest van dit script (zie
-// src/lib/tijd.ts, komendeDagen) gaat dit uit van de lokale tijd van de
-// machine waar het script draait. Op een lokale/Nederlandse machine is dat
-// vanzelf goed; draait de uiteindelijke VPS-cron in UTC, dan moet daar
-// TZ=Europe/Amsterdam gezet worden, anders schuift dag/tijd-matching hier
-// een paar uur op.
+// TIJDZONE: net als de rest van dit script (zie src/lib/tijd.ts,
+// komendeDagen) gaat dit uit van de lokale tijd van de machine waar het
+// script draait. De VPS zelf staat in UTC (`timedatectl` bevestigt
+// "Etc/UTC") — dit was tot 3 aug 2026 dan ook daadwerkelijk stuk: de
+// eerder hier genoemde kanttekening bleek geen theoretisch risico maar de
+// oorzaak van een gemeld bug (Xander: "het systeem haalt oude tijden op").
+// Gefixt met `Environment=TZ=Europe/Amsterdam` in zowel
+// vrijebaan-poll.service als vrijebaan.service (niet hier in code, want dit
+// geldt voor élke Date-berekening in het hele proces, ook /api/
+// beschikbaarheid's alleenToekomstig-filter).
 const WEEKHERINNERING_VERTRAGING_MIN = 90;
 const WEEKHERINNERING_VENSTER_MIN = 30;
 const WEEKHERINNERING_MARGE_UREN = 1;
