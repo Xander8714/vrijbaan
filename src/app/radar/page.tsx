@@ -526,9 +526,9 @@ export default function RadarPage() {
           <label className="block text-sm font-medium text-slate-700" htmlFor="straal">
             Straal: {straalKm} km {zoekgebied ? `rond ${zoekgebied.plaatsnaam}` : ""}
           </label>
-          <input id="straal" type="range" min="1" max="100" step="1" value={straalKm}
+          <input id="straal" type="range" min="1" max="25" step="1" value={straalKm}
             onChange={(e) => setStraalKm(Number(e.target.value))} className="mt-2 w-full" />
-          <div className="flex justify-between text-xs text-slate-400"><span>1 km</span><span>100 km</span></div>
+          <div className="flex justify-between text-xs text-slate-400"><span>1 km</span><span>25 km</span></div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -779,7 +779,11 @@ export default function RadarPage() {
                     {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
                   </button>
                   <button onClick={() => deelClub(club)} disabled={!zoekgebied}
-                    className="text-xs font-medium text-slate-500 hover:text-court-700 disabled:opacity-50">
+                    className="flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
+                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                      <path d="M12 16V4M12 4 7.5 8.5M12 4l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     {gedeeld === club.id ? "Gekopieerd ✓" : "Deel met je groep"}
                   </button>
                   {/* Bij een ledenclub is het boekingssysteem afgeschermd, dus
