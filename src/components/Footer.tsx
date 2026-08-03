@@ -16,7 +16,7 @@ const SITEMAP_LINKS = [
 export default function Footer() {
   return (
     <footer className="mt-16 border-t border-ink-800 bg-ink-900 text-slate-300">
-      <div className="mx-auto grid max-w-4xl gap-8 px-6 py-10 sm:grid-cols-2">
+      <div className="mx-auto grid max-w-4xl gap-8 px-6 py-10 sm:grid-cols-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Sitemap</h2>
           <ul className="mt-3 space-y-2 text-sm">
@@ -43,6 +43,31 @@ export default function Footer() {
               info@devrijebaan.nl
             </a>
           </p>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Volg ons</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            <li>
+              <a
+                href="https://www.instagram.com/devrijebaan/"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-white hover:underline"
+              >
+                Instagram
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://www.facebook.com/profile.php?id=61592881828031"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-white hover:underline"
+              >
+                Facebook
+              </a>
+            </li>
+          </ul>
         </div>
       </div>
       <div className="border-t border-ink-800 px-6 py-4 text-center text-xs text-slate-500">
