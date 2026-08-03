@@ -6,7 +6,7 @@ import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, naarMinuten } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
@@ -50,17 +50,22 @@ export default function RadarPage() {
   // initializers: ze lezen `new Date()` precies één keer, bij het laden van
   // de pagina, niet bij elke render.
   //
-  // NA 21:00 blijft voorkeurstijd bewust LEEG i.p.v. de actuele kloktijd —
+  // NA 21:00 (én vóór 07:00, buiten het bereik van halfUurOpties — Xander,
+  // 3 aug 2026) blijft voorkeurstijd bewust LEEG i.p.v. de actuele kloktijd —
   // Xander (30 juli 2026): "22:57 als voorkeurstijd voor morgen is zinloos,
   // toon dan de eerste beschikbare tijd". Een lege voorkeurstijd filtert niet
   // en de lijst staat toch al chronologisch, dus de vroegste tijden van
   // morgen staan vanzelf bovenaan — geen aparte "eerste tijd"-logica nodig.
-  const naNegenUur = new Date().getHours() >= 21;
-  const [gekozenDatum, setGekozenDatum] = useState(() => (naNegenUur ? dagen[1] : dagen[0]));
+  const nuUur = new Date().getHours();
+  const buitenSpeeltijden = nuUur >= 21 || nuUur < 7;
+  const [gekozenDatum, setGekozenDatum] = useState(() => (buitenSpeeltijden ? dagen[1] : dagen[0]));
   const [voorkeurstijd, setVoorkeurstijd] = useState(() => {
-    if (naNegenUur) return "";
+    if (buitenSpeeltijden) return "";
     const nu = new Date();
-    return `${String(nu.getHours()).padStart(2, "0")}:${String(nu.getMinutes()).padStart(2, "0")}`;
+    // Afronden op het dichtstbijzijnde halve uur — anders komt hier bv.
+    // "14:23" te staan, wat geen optie is in de halfUurOpties()-dropdown en
+    // dus als lege selectie zou ogen.
+    return rondAfOpHalfUur(`${String(nu.getHours()).padStart(2, "0")}:${String(nu.getMinutes()).padStart(2, "0")}`) ?? "";
   });
   const [margeUren, setMargeUren] = useState(2);
 

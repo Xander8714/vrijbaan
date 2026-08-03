@@ -17,6 +17,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     pagina("/radar", 0.9, "daily"),
     pagina("/pricing", 0.6, "monthly"),
     pagina("/help", 0.5, "monthly"),
-    pagina("/club-aanmelden", 0.4, "monthly"),
+    pagina("/telegram", 0.5, "monthly"),
+    // "Club aanmelden" tijdelijk uit de navigatie én sitemap (3 aug 2026,
+    // zie de toelichting bij TABBLADEN in Navigatie.tsx) — pagina blijft
+    // gewoon bestaan, alleen niet actief gepromoot.
+    // pagina("/club-aanmelden", 0.4, "monthly"),
   ];
 }

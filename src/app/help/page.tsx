@@ -8,14 +8,13 @@ export const metadata: Metadata = {
 };
 
 const usecases = [
-  { titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club", stappen: ["Ga naar Radar.", "Klik 'Volg deze club' bij één of meerdere clubs.", "Zodra de live-koppeling actief is, krijg je een melding zodra er een slot vrijkomt."] },
-  { titel: "Ik wil meerdere clubs volgen zonder limiet", stappen: ["Maak een account aan via Inloggen.", "Ga naar Prijzen en upgrade naar Pro.", "Je account ontgrendelt direct alle 8 clubs."] },
+  { titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club", stappen: ["Ga naar Radar.", "Klik 'Volg deze club' bij één of meerdere clubs.", "Koppel je Telegram op je account, dan krijg je daar een berichtje zodra er een slot vrijkomt."] },
+  { titel: "Ik wil vanuit Telegram zelf een baan zoeken", stappen: ["Koppel de bot via je account.", "Typ in de chat gewoon iets als 'zoek een baan in Haarlem rond 20:00'.", "Zie de bot-pagina voor meer voorbeelden en wat de bot verder allemaal kan."] },
 ];
 const faq = [
-  { vraag: "Waarom zie ik geen echte baanbeschikbaarheid?", antwoord: "De radar draait nu op voorbeelddata. De koppeling met Playtomic en KNLTB Meet & Play is de eerstvolgende bouwstap." },
   { vraag: "Wat betekent speelsterkte 1 tot 9?", antwoord: "De officiële KNLTB-schaal: 1 is sterkste, 9 is beginnend. Het sterkste koppel speelt wedstrijd 1." },
   { vraag: "Kan ik de app op mijn telefoon zetten?", antwoord: "Ja — open de site in je mobiele browser en kies 'Toevoegen aan beginscherm'." },
-  { vraag: "Wat kost het?", antwoord: "Gratis om te proberen. Pro is €4,99/maand voor alle clubs en onbeperkte meldingen." },
+  { vraag: "Wat kost het?", antwoord: "Dit jaar (2026) is alles volledig gratis — we testen nog met een kleine groep. Zie de prijzenpagina voor het plan vanaf 2027." },
 ];
 
 export default function HelpPage() {
@@ -23,6 +22,13 @@ export default function HelpPage() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="mt-4 text-3xl font-bold text-slate-900">Help &amp; Use cases</h1>
+      <p className="mt-3 rounded-lg border border-court-200 bg-court-50 px-4 py-3 text-sm text-court-900">
+        Gebruik je liever Telegram? Bekijk de{" "}
+        <Link href="/telegram" className="font-medium underline">
+          uitleg over de Telegram-bot
+        </Link>{" "}
+        — koppelen, losse zoekopdrachten en vaste speelmomenten.
+      </p>
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-slate-900">Zo gebruik je VrijeBaan</h2>
         <div className="mt-4 space-y-4">

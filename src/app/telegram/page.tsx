@@ -1,0 +1,120 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Telegram-bot koppelen en gebruiken",
+  description:
+    "Hoe je de VrijeBaan-bot aan je account koppelt, en wat je er allemaal tegen kunt zeggen: locatie en tijd instellen, losse zoekopdrachten, vaste speelmomenten en meldingen.",
+  alternates: { canonical: "/telegram" },
+};
+
+export default function TelegramPage() {
+  return (
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
+      <h1 className="mt-4 text-3xl font-bold text-slate-900">De Telegram-bot</h1>
+      <p className="mt-2 text-slate-600">
+        VrijeBaan heeft een eigen Telegram-bot die je een berichtje stuurt zodra er een padelbaan vrijkomt, en die je
+        ook gewoon rechtstreeks in de chat kunt vragen om te zoeken. Geen vaste commando&apos;s met een <code>/</code> ervoor
+        (op één na) — je typt gewoon in normale taal wat je wilt.
+      </p>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold text-slate-900">1. Koppelen</h2>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
+          <li>Log in en ga naar je <Link href="/account" className="text-court-700 underline">account</Link>.</li>
+          <li>Klik bij &quot;Telegram-meldingen&quot; op <strong>Koppel Telegram</strong>. Dit opent Telegram met de bot al open.</li>
+          <li>Druk in Telegram op <strong>Start</strong>. De bot koppelt je chat direct aan je account — je hoeft zelf niets
+            te typen of over te nemen.</li>
+          <li>De bot vraagt daarna twee dingen om je op weg te helpen: <em>waar</em> je meestal padelt (plaatsnaam) en
+            <em> hoe laat</em>. Dit is meteen je basis voor meldingen — je kunt het later altijd aanpassen op je
+            accountpagina.</li>
+        </ol>
+        <p className="mt-3 text-sm text-slate-500">
+          Loskoppelen kan altijd via dezelfde plek op je accountpagina (&quot;Ontkoppelen&quot;).
+        </p>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-slate-900">2. Los een baan zoeken in de chat</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Typ op elk moment een zoekopdracht in gewone taal — de bot herkent een plaatsnaam, een tijd en een dag door
+          elkaar heen. Deze werken bijvoorbeeld allemaal:
+        </p>
+        <ul className="mt-3 space-y-2 text-sm">
+          {[
+            "Zoek een baan in Haarlem rond 20:00",
+            "Padellen Rijswijk morgen 11:00",
+            "Morgen ochtend 1100 padellen Velserbroek",
+            "een baan in Heemskerk overmorgen om 9 uur",
+          ].map((v) => (
+            <li key={v} className="rounded-md bg-court-50 px-3 py-2 font-mono text-court-900">&quot;{v}&quot;</li>
+          ))}
+        </ul>
+        <div className="mt-4 space-y-1 text-sm text-slate-600">
+          <p><strong>Tijd:</strong> alleen op het hele of halve uur — typ je iets anders (bv. 11:12), dan rondt de bot af
+            naar het dichtstbijzijnde halve uur.</p>
+          <p><strong>Dag:</strong> zeg je niets, dan pakt de bot vandaag — tenzij het al na 21:00 is, dan is morgen
+            logischer en kiest de bot dat automatisch. Zeg je &quot;morgen&quot; of &quot;overmorgen&quot;, dan geldt dat.</p>
+          <p><strong>Straal:</strong> de bot kijkt tot 10 km rond de plaats die je noemt.</p>
+        </div>
+        <p className="mt-3 text-sm text-slate-600">
+          Herkent de bot meerdere plaatsen met die naam, dan krijg je knopjes om de juiste te kiezen. Daarna zoekt hij
+          direct en stuurt een lijst met tijden — met een link terug naar de Radar om te boeken (je hoeft je daar niet
+          nog eens apart in te loggen).
+        </p>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-slate-900">3. Vaste speelmomenten &amp; meldingen</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Speel je altijd op dezelfde dag en tijd? Dat stel je in op je{" "}
+          <Link href="/account" className="text-court-700 underline">accountpagina</Link> onder &quot;Vaste
+          speelmomenten&quot; — niet via de chat, want daar is een lijstje met dag, tijd en een aan/uit-vinkje net iets
+          overzichtelijker. Voor elk moment met het vinkje aan checkt VrijeBaan ruim na die tijd automatisch of
+          hetzelfde moment volgende week ook vrij is, en stuurt je bot dan een berichtje met een link.
+        </p>
+        <p className="mt-3 text-sm text-slate-600">
+          Daarnaast krijg je automatisch een melding zodra er een nieuwe plek vrijkomt bij:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>een club die je op de <Link href="/radar" className="text-court-700 underline">Radar</Link> volgt (&quot;Volg
+            deze club&quot;) — altijd, ongeacht tijd;</li>
+          <li>elke andere club binnen je zoekstraal, als het nieuwe slot in de buurt van je voorkeurstijd valt.</li>
+        </ul>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold text-slate-900">Kort overzicht</h2>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Wat</th>
+                <th className="px-4 py-2 font-medium">Waar</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <tr>
+                <td className="px-4 py-2">Bot koppelen/ontkoppelen</td>
+                <td className="px-4 py-2"><Link href="/account" className="text-court-700 underline">Account</Link></td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2">Losse zoekopdracht (&quot;zoek een baan in...&quot;)</td>
+                <td className="px-4 py-2">Rechtstreeks in de Telegram-chat</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2">Vaste speeldag + -tijd, aan/uit per moment</td>
+                <td className="px-4 py-2"><Link href="/account" className="text-court-700 underline">Account</Link></td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2">Club volgen voor altijd-melden</td>
+                <td className="px-4 py-2"><Link href="/radar" className="text-court-700 underline">Radar</Link></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
+}

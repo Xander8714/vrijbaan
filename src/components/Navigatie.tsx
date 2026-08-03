@@ -14,9 +14,11 @@ const TABBLADEN = [
   { href: "/account", label: "Account" },
   { href: "/pricing", label: "Prijzen" },
   { href: "/help", label: "Help" },
-  // Klein en achteraan: clubeigenaren zijn een kleine doelgroep, maar moeten
-  // zich wel kunnen aanmelden zonder te hoeven mailen.
-  { href: "/club-aanmelden", label: "Club aanmelden" },
+  // "Club aanmelden" tijdelijk uit de navigatie (3 aug 2026, Xander: "zet de
+  // club aanmelden nog even uit, niet verwijderen maar even niet tonen") —
+  // de route/pagina zelf blijft gewoon bestaan, dus terugzetten is later
+  // gewoon deze regel weer toevoegen.
+  // { href: "/club-aanmelden", label: "Club aanmelden" },
 ];
 
 export default function Navigatie() {

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
@@ -88,7 +89,8 @@ export default function TelegramKoppelen({
       <h2 className="font-semibold text-slate-900">Telegram-meldingen</h2>
       <p className="mt-1 text-sm text-slate-600">
         Volg je een club op de Radar? Koppel Telegram, dan krijg je daar automatisch een bericht zodra er een nieuwe
-        plek vrijkomt.
+        plek vrijkomt. Je kunt de bot ook gewoon iets vragen, zoals &quot;zoek een baan in Haarlem rond 20:00&quot; — zie{" "}
+        <Link href="/telegram" className="text-court-700 underline">wat de bot allemaal kan</Link>.
       </p>
 
       {chatId ? (

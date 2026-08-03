@@ -62,21 +62,28 @@ export function rondAfOpHalfUur(tijd: string): string | null {
 }
 
 /**
- * Alle 48 hele/halve uren van een dag, als "00:00".."23:30" — voor een
+ * Hele/halve uren van een dag als "07:00".."23:00" (standaard) — voor een
  * dropdown i.p.v. een vrij `<input type="time">`. Xander (3 aug 2026): "zorg
  * dat ik alleen per half uur of heel uur tijden kan kiezen, ik hoef niet
  * elke minuut weer te geven". `step="1800"` + achteraf afronden (zie
  * rondAfOpHalfUur hierboven) laat op sommige tijdkiezers nog steeds elke
  * minuut ZIEN, ook al werd de opgeslagen waarde alsnog afgerond — een
- * dropdown met alleen deze 48 waarden maakt een minuutwaarde onmogelijk om
- * te kiezen i.p.v. hem achteraf te corrigeren.
+ * dropdown met alleen deze waarden maakt een minuutwaarde onmogelijk om te
+ * kiezen i.p.v. hem achteraf te corrigeren.
+ *
+ * Standaard begrensd op 07:00-23:00 (Xander, 3 aug 2026: "geef niet weer
+ * tussen 23:00 en 07:00, scheelt weer scrollen") — clubs sluiten toch rond
+ * 23:00 (zie ook binnenTijdvenster hierboven), dus die uren zijn voor het
+ * kiezen van een speeltijd altijd ruis.
  */
-export function halfUurOpties(): string[] {
-  return Array.from({ length: 48 }, (_, i) => {
-    const uren = String(Math.floor(i / 2)).padStart(2, "0");
-    const minuten = i % 2 === 0 ? "00" : "30";
-    return `${uren}:${minuten}`;
-  });
+export function halfUurOpties(vanaf = "07:00", tot = "23:00"): string[] {
+  const start = naarMinuten(vanaf) ?? 0;
+  const eind = naarMinuten(tot) ?? 24 * 60 - 30;
+  const opties: string[] = [];
+  for (let m = start; m <= eind; m += 30) {
+    opties.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  }
+  return opties;
 }
 
 /**
