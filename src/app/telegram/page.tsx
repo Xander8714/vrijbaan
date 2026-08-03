@@ -26,8 +26,8 @@ export default function TelegramPage() {
           <li>Klik bij &quot;Telegram-meldingen&quot; op <strong>Koppel Telegram</strong>. Dit opent Telegram met de bot al open.</li>
           <li>Druk in Telegram op <strong>Start</strong>. De bot koppelt je chat direct aan je account — je hoeft zelf niets
             te typen of over te nemen.</li>
-          <li>De bot vraagt daarna twee dingen om je op weg te helpen: <em>waar</em> je meestal padelt (plaatsnaam) en
-            <em> hoe laat</em>. Dit is meteen je basis voor meldingen — je kunt het later altijd aanpassen op je
+          <li>De bot vraagt daarna twee dingen om je op weg te helpen: <em>waar</em> je meestal padelt (plaatsnaam) en{" "}
+            <em>hoe laat</em>. Dit is meteen je basis voor meldingen — je kunt het later altijd aanpassen op je
             accountpagina.</li>
         </ol>
         <p className="mt-3 text-sm text-slate-500">
@@ -54,8 +54,9 @@ export default function TelegramPage() {
         <div className="mt-4 space-y-1 text-sm text-slate-600">
           <p><strong>Tijd:</strong> alleen op het hele of halve uur — typ je iets anders (bv. 11:12), dan rondt de bot af
             naar het dichtstbijzijnde halve uur.</p>
-          <p><strong>Dag:</strong> zeg je niets, dan pakt de bot vandaag — tenzij het al na 21:00 is, dan is morgen
-            logischer en kiest de bot dat automatisch. Zeg je &quot;morgen&quot; of &quot;overmorgen&quot;, dan geldt dat.</p>
+          <p><strong>Dag:</strong>{" "}
+            zeg je niets, dan pakt de bot vandaag — tenzij het al na 21:00 is, dan is morgen logischer en kiest de
+            bot dat automatisch. Zeg je &quot;morgen&quot; of &quot;overmorgen&quot;, dan geldt dat.</p>
           <p><strong>Straal:</strong> de bot kijkt tot 10 km rond de plaats die je noemt.</p>
         </div>
         <p className="mt-3 text-sm text-slate-600">
