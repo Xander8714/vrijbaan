@@ -6,7 +6,7 @@ import { POLL_CONFIG } from "@/lib/pollConfig";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { binnenStraal, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, komendeDagen, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, naarMinuten } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
@@ -508,9 +508,12 @@ export default function RadarPage() {
         <div className="mt-4 flex flex-wrap items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="voorkeurstijd">Voorkeurstijd</label>
-            <input id="voorkeurstijd" type="time" step="1800" value={voorkeurstijd}
-              onChange={(e) => setVoorkeurstijd(rondAfOpHalfUur(e.target.value) ?? e.target.value)}
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            <select id="voorkeurstijd" value={voorkeurstijd}
+              onChange={(e) => setVoorkeurstijd(e.target.value)}
+              className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Geen voorkeur</option>
+              {halfUurOpties().map((t) => (<option key={t} value={t}>{t}</option>))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="marge">Marge</label>

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { rondAfOpHalfUur } from "@/lib/tijd";
+import { halfUurOpties } from "@/lib/tijd";
 import type { VastSpeelmoment } from "@/lib/types";
 
 // JS Date#getDay()-conventie (0=zondag), zelfde als vaste_speelmomenten.dag.
@@ -152,13 +152,15 @@ export default function VasteMomenten({
                 <option key={d.waarde} value={d.waarde}>{d.label}</option>
               ))}
             </select>
-            <input
+            <select
               aria-label="Speeltijd"
-              type="time" step="1800"
               value={r.tijd ?? ""}
-              onChange={(e) => werkBij(r.sleutel, "tijd", e.target.value === "" ? null : rondAfOpHalfUur(e.target.value))}
+              onChange={(e) => werkBij(r.sleutel, "tijd", e.target.value === "" ? null : e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-            />
+            >
+              <option value="">Kies een tijd</option>
+              {halfUurOpties().map((t) => (<option key={t} value={t}>{t}</option>))}
+            </select>
             <label className="flex items-center gap-1.5 text-sm text-slate-600">
               <input
                 type="checkbox"

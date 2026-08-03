@@ -62,6 +62,24 @@ export function rondAfOpHalfUur(tijd: string): string | null {
 }
 
 /**
+ * Alle 48 hele/halve uren van een dag, als "00:00".."23:30" — voor een
+ * dropdown i.p.v. een vrij `<input type="time">`. Xander (3 aug 2026): "zorg
+ * dat ik alleen per half uur of heel uur tijden kan kiezen, ik hoef niet
+ * elke minuut weer te geven". `step="1800"` + achteraf afronden (zie
+ * rondAfOpHalfUur hierboven) laat op sommige tijdkiezers nog steeds elke
+ * minuut ZIEN, ook al werd de opgeslagen waarde alsnog afgerond — een
+ * dropdown met alleen deze 48 waarden maakt een minuutwaarde onmogelijk om
+ * te kiezen i.p.v. hem achteraf te corrigeren.
+ */
+export function halfUurOpties(): string[] {
+  return Array.from({ length: 48 }, (_, i) => {
+    const uren = String(Math.floor(i / 2)).padStart(2, "0");
+    const minuten = i % 2 === 0 ? "00" : "30";
+    return `${uren}:${minuten}`;
+  });
+}
+
+/**
  * Valt `tijd` binnen `margeUren` rond `voorkeur`?
  *
  * Bewust géén doorloop over middernacht: een padelbaan om 01:00 is geen
