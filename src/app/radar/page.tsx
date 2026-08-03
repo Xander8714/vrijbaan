@@ -869,9 +869,9 @@ export default function RadarPage() {
       </div>
 
       <p className="mt-8 text-xs text-slate-400">
-        Live beschikbaarheid komt uit <code>scripts/poll-availability.ts</code> (Meet &amp; Play, Playtomic en
-        Foys/Peakz). Clubs waar boeken alleen met lidmaatschap of inlog kan, worden niet getoond. Afstanden met
-        &quot;(ca.)&quot; zijn tot het midden van de plaats gemeten — zie API_REQUIREMENTS.md.
+        Beschikbaarheid komt live van Playtomic, KNLTB Meet &amp; Play en Foys/Peakz. Clubs waar je alleen met een
+        lidmaatschap of login kunt boeken, tonen we hier niet. Afstanden met &quot;(ca.)&quot; zijn gemeten tot het
+        midden van de plaats, niet tot het exacte clubadres.
       </p>
     </main>
   );

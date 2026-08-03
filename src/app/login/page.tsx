@@ -43,7 +43,18 @@ export default function LoginPage() {
       : await supabase.auth.signUp({ email, password: wachtwoord });
     setBezig(false);
     if (error) { setBericht(error.message); return; }
-    if (modus === "registreren") { setBericht("Account aangemaakt. Check je mail om te bevestigen, log daarna in."); return; }
+    if (modus === "registreren") {
+      setBericht("Account aangemaakt. Check je mail om te bevestigen, log daarna in.");
+      // Los van de gebruikersflow — een mislukte eigenaarsmelding mag een
+      // geslaagde registratie nooit blokkeren, dus bewust niet awaited/gecatched
+      // op een manier die de UI raakt.
+      fetch("/api/telegram/registratie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
+      return;
+    }
     router.push("/account"); router.refresh();
   };
 

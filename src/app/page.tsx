@@ -62,7 +62,6 @@ export default function Home() {
             Hoe werkt het? →
           </Link>
         </div>
-        <p className="mt-12 text-xs text-slate-400">MVP-versie — zie PROJECTPLAN.md voor de volledige uitwerking.</p>
       </div>
     </main>
   );
