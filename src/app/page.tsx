@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RacketIcon, BalIcon } from "@/components/PadelIcons";
+import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 
 export const metadata: Metadata = {
   title: "Vind een vrije padelbaan in Nederland",
@@ -8,6 +9,14 @@ export const metadata: Metadata = {
     "Live beschikbaarheid van padelbanen bij Playtomic-, KNLTB Meet & Play- en Peakz-clubs in heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
   alternates: { canonical: "/" },
 };
+
+// Live geteld uit de eigen clubdata (niet hardcoded) — Xander (3 aug 2026):
+// homepage miste een vertrouwenssignaal ("is dit al echt?") voor een
+// onbekende bezoeker. Telt alle aangesloten clubs mee (ook ledenclubs), want
+// die zijn wel degelijk via de scrapers gekoppeld, ook al is boeken daar
+// beperkt tot leden.
+const TOTAAL_BANEN = CLUBS_INCLUSIEF_LEDENCLUBS.reduce((som, club) => som + club.banen, 0);
+const TOTAAL_CLUBS = CLUBS_INCLUSIEF_LEDENCLUBS.length;
 
 export default function Home() {
   return (
@@ -28,6 +37,9 @@ export default function Home() {
           <p className="mt-4 max-w-xl text-lg text-slate-300">
             Vrij baan om te padellen. VrijeBaan bundelt live beschikbaarheid van padelclubs bij jou in de buurt — zoek
             op adres, stel je straal in en boek direct bij de club zelf.
+          </p>
+          <p className="mt-3 text-sm font-medium text-ball-400">
+            Nu al {TOTAAL_BANEN} padelbanen aangesloten bij {TOTAAL_CLUBS} clubs door heel Nederland.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link

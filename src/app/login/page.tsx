@@ -40,7 +40,17 @@ export default function LoginPage() {
 
     const { error } = modus === "inloggen"
       ? await supabase.auth.signInWithPassword({ email, password: wachtwoord })
-      : await supabase.auth.signUp({ email, password: wachtwoord });
+      : await supabase.auth.signUp({
+          email,
+          password: wachtwoord,
+          // Na het bevestigen van de e-mail direct naar de Telegram-koppelstap
+          // i.p.v. de kale homepage — Xander (3 aug 2026: "een snellere manier"
+          // voor account maken + Telegram koppelen). Dit is de kortste stap die
+          // veilig kan zonder de e-mailbevestiging zelf uit te zetten (dat is
+          // een echte security-afweging, geen UI-detail — die beslissing is aan
+          // Xander, niet iets wat ik zelf omzet).
+          options: { emailRedirectTo: `${window.location.origin}/account?welkom=1` },
+        });
     setBezig(false);
     if (error) { setBericht(error.message); return; }
     if (modus === "registreren") {

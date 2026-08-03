@@ -11,10 +11,16 @@ import VasteMomenten from "./VasteMomenten";
 // Privé, achter inloggen — niets hier is nuttig voor een zoekmachine.
 export const metadata: Metadata = { title: "Mijn account", robots: { index: false, follow: false } };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welkom?: string }>;
+}) {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const { welkom } = await searchParams;
 
   const [{ data: rij }, { data: momentenRijen }, { data: gevolgdRijen }] = await Promise.all([
     supabase
@@ -74,6 +80,13 @@ export default async function AccountPage() {
       <h1 className="text-3xl font-bold text-slate-900">Mijn account</h1>
       <p className="mt-1 text-slate-600">{volledigeNaam || user.email}</p>
 
+      {welkom === "1" && !rij?.telegram_chat_id && (
+        <p className="mt-4 rounded-lg border border-court-200 bg-court-50 px-4 py-3 text-sm text-court-900">
+          Welkom bij VrijeBaan! Laatste stap: koppel Telegram hieronder, dan krijg je automatisch een berichtje
+          zodra er een padelbaan vrijkomt.
+        </p>
+      )}
+
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-sm text-slate-500">E-mailadres</p>
@@ -90,11 +103,14 @@ export default async function AccountPage() {
         </div>
       </div>
 
-      <ProfielFormulier userId={user.id} beginProfiel={profiel} />
-
+      {/* Vóór het profielformulier — Xander (3 aug 2026): dit is de stap die
+          een nieuwe gebruiker daadwerkelijk terug laat komen (meldingen), dus
+          die hoort bovenaan, niet achter een lang profielformulier verstopt. */}
       <div className="mt-6">
         <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} />
       </div>
+
+      <ProfielFormulier userId={user.id} beginProfiel={profiel} />
 
       <div className="mt-6">
         <VasteMomenten userId={user.id} beginMomenten={beginMomenten} favorieteClubs={favorieteClubs} />
