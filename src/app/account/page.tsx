@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
-import type { Profiel } from "@/lib/types";
+import type { Profiel, VastSpeelmoment } from "@/lib/types";
+import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 import ProfielFormulier from "./ProfielFormulier";
 import TelegramKoppelen from "./TelegramKoppelen";
+import VasteMomenten from "./VasteMomenten";
 
 // Privé, achter inloggen — niets hier is nuttig voor een zoekmachine.
 export const metadata: Metadata = { title: "Mijn account", robots: { index: false, follow: false } };
@@ -14,15 +16,37 @@ export default async function AccountPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: rij } = await supabase
-    .from("profiles")
-    .select(
-      "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, telefoon, telegram_chat_id, voorkeurstijd, terugkerende_dag"
-    )
-    .eq("id", user.id)
-    .single();
+  const [{ data: rij }, { data: momentenRijen }, { data: gevolgdRijen }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "subscription_status, voornaam, achternaam, speelsterkte, speelsterkte_bron, bondsnummer, straat, huisnummer, postcode, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, telefoon, telegram_chat_id"
+      )
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("vaste_speelmomenten")
+      .select("id, dag, tijd, gemeld")
+      .eq("profile_id", user.id)
+      .order("dag")
+      .order("tijd"),
+    supabase.from("gevolgde_clubs").select("club_id").eq("user_id", user.id),
+  ]);
 
   const status = rij?.subscription_status ?? "free";
+
+  const beginMomenten: VastSpeelmoment[] = (momentenRijen ?? []).map((m) => ({
+    id: m.id as string,
+    dag: m.dag as number,
+    tijd: m.tijd as string,
+    gemeld: m.gemeld as boolean,
+  }));
+
+  // Namen erbij zoeken voor weergave — gevolgde_clubs zelf bevat alleen id's.
+  const favorieteClubs = (gevolgdRijen ?? [])
+    .map((r) => CLUBS_INCLUSIEF_LEDENCLUBS.find((c) => c.id === r.club_id))
+    .filter((c): c is (typeof CLUBS_INCLUSIEF_LEDENCLUBS)[number] => c !== undefined)
+    .map((c) => ({ id: c.id, naam: c.naam, plaats: c.plaats }));
 
   // Zet de databasekolommen om naar het Profiel-type. Bestaande accounts
   // hebben deze kolommen nog niet gevuld, dus alles valt terug op null.
@@ -41,8 +65,6 @@ export default async function AccountPage() {
     zoekstraalKm: rij?.zoekstraal_km ?? 10,
     lidmaatschappen: rij?.lidmaatschappen ?? [],
     telefoon: rij?.telefoon ?? null,
-    voorkeurstijd: rij?.voorkeurstijd ?? null,
-    terugkerendeDag: rij?.terugkerende_dag ?? null,
   };
 
   const volledigeNaam = [profiel.voornaam, profiel.achternaam].filter(Boolean).join(" ");
@@ -72,6 +94,10 @@ export default async function AccountPage() {
 
       <div className="mt-6">
         <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} />
+      </div>
+
+      <div className="mt-6">
+        <VasteMomenten userId={user.id} beginMomenten={beginMomenten} favorieteClubs={favorieteClubs} />
       </div>
 
       <p className="mt-8 text-xs text-slate-400">

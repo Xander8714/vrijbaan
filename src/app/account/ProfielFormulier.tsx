@@ -6,20 +6,6 @@ import type { Profiel } from "@/lib/types";
 import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { normaliseerMobielNummer, toonMobielNummer } from "@/lib/telefoon";
-import { rondAfOpHalfUur } from "@/lib/tijd";
-
-// JS Date#getDay()-conventie (0=zondag), zelfde als profiles.terugkerende_dag
-// — zie scripts/poll-availability.ts. Weergave begint bij maandag, want dat
-// leest natuurlijker in het Nederlands, ook al is de opgeslagen waarde anders.
-const WEEKDAGEN: { waarde: number; label: string }[] = [
-  { waarde: 1, label: "Maandag" },
-  { waarde: 2, label: "Dinsdag" },
-  { waarde: 3, label: "Woensdag" },
-  { waarde: 4, label: "Donderdag" },
-  { waarde: 5, label: "Vrijdag" },
-  { waarde: 6, label: "Zaterdag" },
-  { waarde: 0, label: "Zondag" },
-];
 
 /**
  * Probeert een los getypte verenigingsnaam alsnog aan een bekende club te
@@ -159,8 +145,6 @@ export default function ProfielFormulier({
         lon: profiel.lon,
         zoekstraal_km: profiel.zoekstraalKm,
         lidmaatschappen: profiel.lidmaatschappen,
-        voorkeurstijd: profiel.voorkeurstijd,
-        terugkerende_dag: profiel.terugkerendeDag,
       })
       .eq("id", userId);
     setBezig(false);
@@ -350,48 +334,6 @@ export default function ProfielFormulier({
           <p className="mt-2 text-xs text-amber-700">
             Nog geen middelpunt gekozen. Zoek hierboven een straat of woonplaats, anders kan de Radar niet op afstand filteren.
           </p>
-        )}
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Vast speelmoment</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Speel je altijd op dezelfde dag en tijd? Dan checken we ruim na je sessie automatisch of dat moment volgende
-          week ook vrij is, en sturen we je via Telegram een berichtje met een link. Vereist een gekoppelde
-          Telegram-chat (hieronder) en een locatie (hierboven).
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="veld-terugkerende-dag">
-              Vaste speeldag
-            </label>
-            <select
-              id="veld-terugkerende-dag"
-              value={profiel.terugkerendeDag ?? ""}
-              onChange={(e) => zet("terugkerendeDag", e.target.value === "" ? null : Number(e.target.value))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Geen vaste dag</option>
-              {WEEKDAGEN.map((d) => (
-                <option key={d.waarde} value={d.waarde}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="veld-voorkeurstijd">
-              Vaste speeltijd
-            </label>
-            <input
-              id="veld-voorkeurstijd"
-              type="time" step="1800"
-              value={profiel.voorkeurstijd ?? ""}
-              onChange={(e) => zet("voorkeurstijd", e.target.value === "" ? null : rondAfOpHalfUur(e.target.value))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-        {profiel.terugkerendeDag !== null && !profiel.voorkeurstijd && (
-          <p className="mt-2 text-xs text-amber-700">Vul ook een speeltijd in, anders kan dit niet gepland worden.</p>
         )}
       </section>
 

@@ -56,11 +56,12 @@
  * de te pollen clubselectie hieronder nu behalve gevolgde clubs ook clubs
  * binnen iemands straal meeneemt (naast gevolgd) — zie clubsInGebied.
  *
- * WEKELIJKSE HERINNERING (3 aug 2026): los van de "nieuw slot"-meldingen
- * hierboven — een gebruiker met een vaste speeldag+tijd (Account-pagina,
- * profiles.terugkerende_dag + voorkeurstijd) krijgt op die dag, geruime tijd
- * na zijn eigen sessie, een apart berichtje of datzelfde moment volgende
- * week ook vrij is, met een link naar de Radar. Zie
+ * WEKELIJKSE HERINNERING (3 aug 2026, uitgebreid tot meerdere momenten per
+ * gebruiker): los van de "nieuw slot"-meldingen hierboven — elk vast
+ * speelmoment (Account-pagina, tabel vaste_speelmomenten, meerdere per
+ * gebruiker mogelijk, elk met een eigen "op de hoogte houden"-vinkje) levert
+ * op die dag, geruime tijd na de sessie, een apart berichtje of datzelfde
+ * moment volgende week ook vrij is, met een link naar de Radar. Zie
  * stuurWekelijkseHerinneringen/verwerkWeekherinnering hieronder.
  *
  * Gebruik:
@@ -367,18 +368,19 @@ async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
 // --- Wekelijkse herinnering voor een vast speelmoment ------------------
 //
 // Xander (3 aug 2026): sommige spelers spelen altijd dezelfde dag/tijd (bv.
-// elke dinsdag 20:00). Ruim na hun eigen sessie die dag willen ze weten of
-// datzelfde moment volgende week ook vrij is — een pop-up-achtig berichtje,
-// niet de gewone "nieuw slot"-notificatie (die reageert op vrijgekomen
-// plekken, niet op een vaste dag/tijd van de gebruiker). Ingesteld via
-// profiles.terugkerende_dag + voorkeurstijd (Account-pagina).
+// elke dinsdag 20:00) — en soms meerdere vaste momenten. Ruim na zo'n sessie
+// willen ze weten of datzelfde moment volgende week ook vrij is — een
+// pop-up-achtig berichtje, niet de gewone "nieuw slot"-notificatie (die
+// reageert op vrijgekomen plekken, niet op een vaste dag/tijd van de
+// gebruiker). Ingesteld via tabel vaste_speelmomenten (Account-pagina,
+// meerdere rijen per gebruiker mogelijk).
 //
-// VERTRAGING/VENSTER: 90 min na de voorkeurstijd (Xander noemde zowel "een
-// uur" als "21:30 bij een sessie om 20:00" — 21:30 is 90 min, dat is
-// aangehouden) met een venster van 30 min erna, zodat een gemiste of
-// vertraagde pollronde (elke ~5-10 min extern gepland) het moment niet laat
-// glippen. laatste_weekherinnering_op voorkomt dubbel versturen binnen
-// dezelfde dag als de pollronde vaker in dat venster valt.
+// VERTRAGING/VENSTER: 90 min na de speeltijd (Xander noemde zowel "een uur"
+// als "21:30 bij een sessie om 20:00" — 21:30 is 90 min, dat is aangehouden)
+// met een venster van 30 min erna, zodat een gemiste of vertraagde
+// pollronde (elke ~5-10 min extern gepland) het moment niet laat glippen.
+// laatste_herinnering_op (per moment, niet per profiel — zie hieronder)
+// voorkomt dubbel versturen binnen dezelfde dag.
 //
 // TIJDZONE-KANTTEKENING: net als de rest van dit script (zie
 // src/lib/tijd.ts, komendeDagen) gaat dit uit van de lokale tijd van de
@@ -390,51 +392,68 @@ const WEEKHERINNERING_VERTRAGING_MIN = 90;
 const WEEKHERINNERING_VENSTER_MIN = 30;
 const WEEKHERINNERING_MARGE_UREN = 1;
 
-type WeekherinneringProfiel = {
+// Eén rij uit vaste_speelmomenten, samengevoegd met de profielvelden die
+// nodig zijn om te melden en te scrapen. Xander (3 aug 2026): "zorg dat ik
+// meer vaste momenten kan kiezen" — dus per PROFIEL kunnen hier meerdere
+// rijen bestaan (elk met een eigen dag/tijd/gemeld-vinkje en eigen
+// laatste_herinnering_op), niet meer hooguit één zoals de vorige
+// profiles.terugkerende_dag-kolom toeliet.
+type VastMomentMetProfiel = {
   id: string;
+  profielId: string;
+  dag: number;
+  tijd: string;
   chatId: number;
   lat: number;
   lon: number;
   straalKm: number;
-  voorkeurstijd: string;
-  terugkerendeDag: number;
 };
 
-/** Alle profielen met zowel een vaste speeldag als -tijd, die vandaag nog geen herinnering kregen. */
-async function haalWeekherinneringProfielen(nu: Date): Promise<WeekherinneringProfiel[]> {
+/** Alle momenten met gemeld=true, gekoppeld profiel met Telegram+locatie, die vandaag nog geen herinnering kregen. */
+async function haalWeekherinneringMomenten(nu: Date): Promise<VastMomentMetProfiel[]> {
   const supabase = supabaseAdmin();
   const { data, error } = await supabase
-    .from("profiles")
-    .select("id, telegram_chat_id, lat, lon, zoekstraal_km, voorkeurstijd, terugkerende_dag, laatste_weekherinnering_op")
-    .not("telegram_chat_id", "is", null)
-    .not("lat", "is", null)
-    .not("lon", "is", null)
-    .not("voorkeurstijd", "is", null)
-    .not("terugkerende_dag", "is", null);
+    .from("vaste_speelmomenten")
+    .select("id, profile_id, dag, tijd, laatste_herinnering_op, profiles(telegram_chat_id, lat, lon, zoekstraal_km)")
+    .eq("gemeld", true);
   if (error) {
-    console.error("[weekherinnering] Kon profielen niet ophalen:", error.message);
+    console.error("[weekherinnering] Kon vaste speelmomenten niet ophalen:", error.message);
     return [];
   }
   const vandaag = toISODate(nu);
-  return (data ?? [])
+  const resultaat: VastMomentMetProfiel[] = [];
+  for (const rij of data ?? []) {
     // Bewust in JS gefilterd i.p.v. .neq() in de query: bij een lege
-    // laatste_weekherinnering_op (nog nooit verstuurd) zou .neq() de rij door
+    // laatste_herinnering_op (nog nooit verstuurd) zou .neq() de rij door
     // SQL's drieledige NULL-logica juist stilzwijgend UITsluiten.
-    .filter((p) => p.laatste_weekherinnering_op !== vandaag)
-    .map((p) => ({
-      id: p.id as string,
-      chatId: p.telegram_chat_id as number,
-      lat: p.lat as number,
-      lon: p.lon as number,
-      straalKm: (p.zoekstraal_km as number) ?? 10,
-      voorkeurstijd: p.voorkeurstijd as string,
-      terugkerendeDag: p.terugkerende_dag as number,
-    }));
+    if (rij.laatste_herinnering_op === vandaag) continue;
+    // Zonder gegenereerde Supabase-types leidt de client het type van een
+    // embedded relatie soms als array af, ook al is dit in werkelijkheid
+    // altijd precies één profiel (profile_id verwijst naar precies één
+    // rij) — vandaar de omweg via `unknown` en de array-normalisatie.
+    const ruwProfiel = rij.profiles as unknown as
+      | { telegram_chat_id: number | null; lat: number | null; lon: number | null; zoekstraal_km: number | null }
+      | { telegram_chat_id: number | null; lat: number | null; lon: number | null; zoekstraal_km: number | null }[]
+      | null;
+    const profiel = Array.isArray(ruwProfiel) ? ruwProfiel[0] ?? null : ruwProfiel;
+    if (!profiel?.telegram_chat_id || profiel.lat == null || profiel.lon == null) continue;
+    resultaat.push({
+      id: rij.id as string,
+      profielId: rij.profile_id as string,
+      dag: rij.dag as number,
+      tijd: rij.tijd as string,
+      chatId: profiel.telegram_chat_id,
+      lat: profiel.lat,
+      lon: profiel.lon,
+      straalKm: profiel.zoekstraal_km ?? 10,
+    });
+  }
+  return resultaat;
 }
 
-async function verwerkWeekherinnering(profiel: WeekherinneringProfiel, nu: Date): Promise<void> {
-  if (nu.getDay() !== profiel.terugkerendeDag) return;
-  const voorkeurMin = naarMinuten(profiel.voorkeurstijd);
+async function verwerkWeekherinnering(moment: VastMomentMetProfiel, nu: Date): Promise<void> {
+  if (nu.getDay() !== moment.dag) return;
+  const voorkeurMin = naarMinuten(moment.tijd);
   if (voorkeurMin === null) return;
   const minutenSindsVoorkeur = nu.getHours() * 60 + nu.getMinutes() - voorkeurMin;
   if (
@@ -451,8 +470,8 @@ async function verwerkWeekherinnering(profiel: WeekherinneringProfiel, nu: Date)
 
   const clubsInBuurt = binnenStraal(
     CLUBS.filter((c) => c.id in POLL_CONFIG),
-    { lat: profiel.lat, lon: profiel.lon },
-    profiel.straalKm
+    { lat: moment.lat, lon: moment.lon },
+    moment.straalKm
   );
 
   const regels: string[] = [];
@@ -465,50 +484,50 @@ async function verwerkWeekherinnering(profiel: WeekherinneringProfiel, nu: Date)
       continue;
     }
     await pauzeerVoorPlaytomic(club.id);
-    const passend = sloten.filter((s) => binnenTijdvenster(s.startTime, profiel.voorkeurstijd, WEEKHERINNERING_MARGE_UREN));
+    const passend = sloten.filter((s) => binnenTijdvenster(s.startTime, moment.tijd, WEEKHERINNERING_MARGE_UREN));
     if (passend.length === 0) continue;
     const tijden = passend.map((s) => (s.prijs ? `${s.startTime} (${s.prijs})` : s.startTime)).join(", ");
     regels.push(`• ${club.naam} — ${tijden}`);
   }
 
   const linkParams = new URLSearchParams({
-    lat: String(profiel.lat),
-    lon: String(profiel.lon),
-    straal: String(profiel.straalKm),
+    lat: String(moment.lat),
+    lon: String(moment.lon),
+    straal: String(moment.straalKm),
     datum,
-    tijd: profiel.voorkeurstijd,
+    tijd: moment.tijd,
   });
   const radarPad = `/radar?${linkParams.toString()}`;
   let link = `${SITE_URL}${radarPad}`;
   try {
-    const token = await maakInlogToken(supabase, profiel.id);
+    const token = await maakInlogToken(supabase, moment.profielId);
     link = bouwSessieLink(SITE_URL, token, radarPad);
   } catch (err) {
     console.error("[weekherinnering] Inlogtoken maken mislukt, val terug op kale link:", err);
   }
 
-  const kop = `Je vaste padel-moment: volgende week rond ${profiel.voorkeurstijd} (${datum}).`;
+  const kop = `Je vaste padel-moment: volgende week rond ${moment.tijd} (${datum}).`;
   const bericht =
     regels.length > 0
       ? `${kop}\n\n${regels.join("\n")}\n\nBoek via de Radar:\n${link}`
       : `${kop}\n\nNog niks vrij op dat moment binnen je straal. Kom er iets vrij, dan krijg je daarvoor sowieso een aparte melding.\n\n${link}`;
 
-  await stuurTelegramBericht(profiel.chatId, bericht);
+  await stuurTelegramBericht(moment.chatId, bericht);
 
   const { error: updateFout } = await supabase
-    .from("profiles")
-    .update({ laatste_weekherinnering_op: toISODate(nu) })
-    .eq("id", profiel.id);
+    .from("vaste_speelmomenten")
+    .update({ laatste_herinnering_op: toISODate(nu) })
+    .eq("id", moment.id);
   if (updateFout) {
-    console.error(`[weekherinnering] Kon laatste_weekherinnering_op niet bijwerken voor profiel ${profiel.id}:`, updateFout.message);
+    console.error(`[weekherinnering] Kon laatste_herinnering_op niet bijwerken voor moment ${moment.id}:`, updateFout.message);
   }
 }
 
 async function stuurWekelijkseHerinneringen(): Promise<void> {
   const nu = new Date();
-  const profielen = await haalWeekherinneringProfielen(nu);
-  for (const profiel of profielen) {
-    await verwerkWeekherinnering(profiel, nu);
+  const momenten = await haalWeekherinneringMomenten(nu);
+  for (const moment of momenten) {
+    await verwerkWeekherinnering(moment, nu);
   }
 }
 
