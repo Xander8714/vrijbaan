@@ -62,6 +62,40 @@ export type ClubBeschikbaarheid = {
   fout?: string;
 };
 
+/**
+ * Korte in-memory cache per club+dag — Xander (3 aug 2026): "we hadden daar
+ * toch iets voor verzonnen, kort opslaan zodat ze niet nogmaals moeten
+ * wachten". Concreet scenario: de Telegram-bot roept deze route al aan voor
+ * een losse zoekopdracht (zie zoekBeschikbaarheidVoorChat) en linkt daarna
+ * naar de Radar met dezelfde lat/lon/straal/datum — de Radar-pagina doet bij
+ * het openen van zo'n link meteen zelf ook een aanvraag voor (grotendeels)
+ * dezelfde clubs. Zonder cache scraapt dat twee keer, dus wacht de
+ * gebruiker na een al-beantwoorde botvraag alsnog nogmaals tientallen
+ * seconden op Playwright.
+ *
+ * Nu pas veilig als proces-geheugen (na de VPS-migratie draait dit als één
+ * langlevende systemd-service, niet meer als kortstondige Vercel-functies
+ * die toch geen gedeeld geheugen hadden).
+ *
+ * TTL bewust kort: lang genoeg voor de bot→Radar-overstap (meestal enkele
+ * seconden), kort genoeg om "live" te blijven voor het hele punt van de app
+ * — een net vrijgekomen plek door een annulering.
+ */
+const CACHE_TTL_MS = 90_000;
+const cache = new Map<string, { sloten: Slot[]; verlooptOp: number }>();
+
+async function slotenVoorClubMetCache(clubId: string, datum: string): Promise<Slot[]> {
+  const sleutel = `${clubId}:${datum}`;
+  const bestaand = cache.get(sleutel);
+  const nu = Date.now();
+  if (bestaand && bestaand.verlooptOp > nu) return bestaand.sloten;
+  // Bewust NIET cachen bij een mislukte scrape: een tijdelijke fout mag niet
+  // de volle TTL blijven hangen voor iedereen die deze club daarna opvraagt.
+  const sloten = await slotenVoorClub(clubId, datum);
+  cache.set(sleutel, { sloten, verlooptOp: nu + CACHE_TTL_MS });
+  return sloten;
+}
+
 async function slotenVoorClub(clubId: string, datum: string): Promise<Slot[]> {
   const bron = POLL_CONFIG[clubId];
   if (!bron) throw new Error("Deze club is niet gekoppeld aan een boekingssysteem.");
@@ -123,7 +157,7 @@ async function inBatches(clubIds: string[], datum: string): Promise<ClubBeschikb
     const resultaten = await Promise.all(
       batch.map(async (clubId): Promise<ClubBeschikbaarheid> => {
         try {
-          return { clubId, sloten: alleenToekomstig(await slotenVoorClub(clubId, datum), datum) };
+          return { clubId, sloten: alleenToekomstig(await slotenVoorClubMetCache(clubId, datum), datum) };
         } catch (err) {
           // Eén kapotte bron mag de rest niet meesleuren: de club komt terug
           // met een foutmelding in plaats van stil te verdwijnen. De ECHTE
