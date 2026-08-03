@@ -213,6 +213,12 @@ export default function RadarPage() {
         const eersteKeus = uitUrl ?? uitOpslag;
         if (eersteKeus) { setZoekgebied(eersteKeus); setStraalKm(eersteKeus.straalKm); }
         else gebruikMijnLocatie();
+        // Vanuit een botlink (lat/lon in de URL) wil je niet nogmaals zelf op
+        // "Zoek nu" hoeven klikken — Xander (3 aug 2026): "als ik vanuit
+        // telegram kom wil ik dat je direct op zoek nu klikt". Bij een gewoon
+        // paginabezoek (geen URL-locatie) blijft handmatig zoeken de regel,
+        // zie de toelichting bij het ophaal-effect hieronder.
+        if (uitUrl) setHandmatigeZoekopdracht((n) => n + 1);
         setLaden(false);
         return;
       }
@@ -249,6 +255,8 @@ export default function RadarPage() {
       const gekozen = uitUrl ?? uitProfiel ?? uitOpslag;
       if (gekozen) { setZoekgebied(gekozen); setStraalKm(gekozen.straalKm); }
       else gebruikMijnLocatie(); // idem: automatisch laden i.p.v. wachten op een klik
+      // Zelfde botlink-uitzondering als hierboven in de niet-ingelogde tak.
+      if (uitUrl) setHandmatigeZoekopdracht((n) => n + 1);
       setLaden(false);
     };
 
