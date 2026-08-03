@@ -45,7 +45,20 @@ export default function RadarPage() {
   const [metingFout, setMetingFout] = useState<string | null>(null);
   const [opgehaaldOp, setOpgehaaldOp] = useState<string | null>(null);
 
-  const dagen = useMemo(() => komendeDagen(), []);
+  // Datum uit een deep link die net buiten het standaard 7-daagse venster
+  // valt (bv. de wekelijkse-herinneringslink in Telegram, die altijd exact
+  // vandaag+7 dagen linkt — één dag verder dan komendeDagen() standaard
+  // toont) — Xander (3 aug 2026): "hij kan niks vinden de 10de", link naar
+  // die dag werkte niet omdat de Radar 'm stilzwijgend negeerde. In plaats
+  // van het standaardvenster overal op te rekken (kost extra Playwright-
+  // runs per bezoek, zie DAGEN_VOORUIT hierboven) breidt dit alleen uit als
+  // er ook echt zo'n link gevolgd is.
+  const [extraDagUitLink, setExtraDagUitLink] = useState<string | null>(null);
+  const dagen = useMemo(() => {
+    const basis = komendeDagen();
+    if (extraDagUitLink && !basis.includes(extraDagUitLink)) return [...basis, extraDagUitLink].sort();
+    return basis;
+  }, [extraDagUitLink]);
   // Standaard actuele tijd ± 2 uur — Xander (30 juli 2026): "pak altijd de
   // actuele tijd, behalve als het later is dan 21 uur, want dan is de
   // persoon op zoek naar de volgende dag". Beide zijn lazy useState-
@@ -180,11 +193,17 @@ export default function RadarPage() {
           : null;
       const urlTijd = urlParams.get("tijd");
       if (urlTijd && naarMinuten(urlTijd) !== null) setVoorkeurstijd(urlTijd);
-      // Alleen overnemen als het binnen het venster valt dat de Radar toont
-      // (vandaag t/m DAGEN_VOORUIT) — een link naar een dag die niet meer in
-      // de tabbladen staat, mag niet stilzwijgend op een verkeerde dag landen.
+      // Binnen het standaardvenster: direct overnemen. Net erbuiten (bv. de
+      // wekelijkse-herinneringslink op precies +7 dagen): erbij zetten i.p.v.
+      // de link stilzwijgend te negeren — zie extraDagUitLink hierboven. Ver
+      // erbuiten (ongeldige/verzonnen datum): negeren, niet blind vertrouwen.
       const urlDatum = urlParams.get("datum");
-      if (urlDatum && dagen.includes(urlDatum)) setGekozenDatum(urlDatum);
+      if (urlDatum && dagen.includes(urlDatum)) {
+        setGekozenDatum(urlDatum);
+      } else if (urlDatum && komendeDagen(14).includes(urlDatum)) {
+        setExtraDagUitLink(urlDatum);
+        setGekozenDatum(urlDatum);
+      }
 
       let uitOpslag: Zoekgebied | null = null;
       const lokaal = window.localStorage.getItem(OPSLAG_SLEUTEL);
