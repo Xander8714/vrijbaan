@@ -28,7 +28,9 @@ export default function PricingPage() {
             Vanaf 2027
           </span>
           <p className="mt-3 text-3xl font-bold text-white">€2<span className="text-base font-normal text-slate-400">/mnd</span></p>
-          <p className="text-sm text-slate-400">of €15/jaar</p>
+          <p className="text-sm text-slate-400">
+            of €15/jaar <span className="text-ball-400">— bespaar €9 (dat is €1,25/mnd)</span>
+          </p>
           <ul className="mt-4 space-y-2 text-sm text-slate-300">
             <li>Alleen als VrijeBaan meer dan 100 accounts heeft</li>
             <li>Bestaande gratis gebruikers krijgen ruim vooraf bericht</li>

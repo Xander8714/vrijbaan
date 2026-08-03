@@ -16,9 +16,9 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.ap
 // krijgt zonder dat te herhalen op elke page.tsx.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "VrijeBaan — Vind een vrije padelbaan in Nederland", template: "%s | VrijeBaan" },
+  title: { default: "VrijeBaan — Vind een vrije padelbaan in de buurt", template: "%s | VrijeBaan" },
   description:
-    "Live beschikbaarheid van padelbanen bij Playtomic-, KNLTB Meet & Play- en Peakz-clubs in heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
+    "Live beschikbaarheid van padelbanen bij jou in de buurt — Playtomic-, KNLTB Meet & Play- en Peakz-clubs door heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
   keywords: [
     "padel baan vrij",
     "padelbaan boeken",
@@ -33,14 +33,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "nl_NL",
     siteName: "VrijeBaan",
-    title: "VrijeBaan — Vind een vrije padelbaan in Nederland",
-    description: "Live beschikbaarheid van padelbanen in heel Nederland. Zoek op adres, filter op tijd, boek direct bij de club.",
+    title: "VrijeBaan — Vind een vrije padelbaan in de buurt",
+    description: "Live beschikbaarheid van padelbanen bij jou in de buurt. Zoek op adres, filter op tijd, boek direct bij de club.",
     url: "/",
   },
   twitter: {
     card: "summary",
-    title: "VrijeBaan — Vind een vrije padelbaan in Nederland",
-    description: "Live beschikbaarheid van padelbanen in heel Nederland.",
+    title: "VrijeBaan — Vind een vrije padelbaan in de buurt",
+    description: "Live beschikbaarheid van padelbanen bij jou in de buurt.",
   },
 };
 
@@ -55,7 +55,7 @@ const structuredData = {
   "@type": "WebSite",
   name: "VrijeBaan",
   url: SITE_URL,
-  description: "Live beschikbaarheid van padelbanen in heel Nederland.",
+  description: "Live beschikbaarheid van padelbanen bij jou in de buurt.",
   inLanguage: "nl-NL",
 };
 

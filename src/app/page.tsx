@@ -4,9 +4,9 @@ import { RacketIcon, BalIcon } from "@/components/PadelIcons";
 import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 
 export const metadata: Metadata = {
-  title: "Vind een vrije padelbaan in Nederland",
+  title: "Vind een vrije padelbaan in de buurt",
   description:
-    "Live beschikbaarheid van padelbanen bij Playtomic-, KNLTB Meet & Play- en Peakz-clubs in heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
+    "Live beschikbaarheid van padelbanen bij jou in de buurt — Playtomic-, KNLTB Meet & Play- en Peakz-clubs door heel Nederland. Zoek op adres, filter op tijd, en boek direct bij de club.",
   alternates: { canonical: "/" },
 };
 
