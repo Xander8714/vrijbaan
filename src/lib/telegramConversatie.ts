@@ -253,5 +253,9 @@ export async function zoekBeschikbaarheidVoorChat(
   if (regels.length === 0) {
     return `${kop}\n\nGeen vrije tijden gevonden die passen. Bekijk alle clubs en dagen op de Radar:\n\n${radarLink}`;
   }
-  return `${kop}\n\n${regels.join("\n")}\n\nBoek via de Radar:\n${radarLink}`;
+  // Padellen speel je met z'n vieren — Xander (3 aug 2026): een gevonden
+  // plek doorsturen is de goedkoopste manier om iemand nieuw op VrijeBaan
+  // te krijgen. Telegram's eigen "doorsturen" doet de rest, dit is puur de
+  // nudge om eraan te denken.
+  return `${kop}\n\n${regels.join("\n")}\n\nBoek via de Radar:\n${radarLink}\n\nStuur dit door naar je padelmaatjes.`;
 }

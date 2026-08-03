@@ -202,7 +202,9 @@ function bouwNotificatieBericht(club: Club | undefined, clubId: string, datum: s
   const gesorteerd = [...nieuweSloten].sort((a, b) => a.startTime.localeCompare(b.startTime));
   const regels = gesorteerd.map((s) => (s.prijs ? `${s.startTime} — ${s.prijs}` : s.startTime)).join("\n");
   const bestemming = club ? boekingsBestemming(club, datum, gesorteerd[0].startTime) : null;
-  const linkRegel = bestemming ? `\n\n${bestemming.url}` : "";
+  // Zelfde nudge als de ad-hoc-zoekopdracht (telegramConversatie.ts) — alleen
+  // zinvol als er ook echt een link is om door te sturen.
+  const linkRegel = bestemming ? `\n\n${bestemming.url}\n\nStuur dit door naar je padelmaatjes.` : "";
   return `${naam} — nieuwe padel-plek(ken) op ${datum}:\n${regels}${linkRegel}`;
 }
 

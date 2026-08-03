@@ -35,6 +35,9 @@ export default function RadarPage() {
   const [isPro, setIsPro] = useState(false);
   const [laden, setLaden] = useState(true);
   const [limietMelding, setLimietMelding] = useState(false);
+  // Welke club net gedeeld is (voor de "Gekopieerd!"-bevestiging op
+  // desktop, waar navigator.share niet bestaat) — zie deelClub.
+  const [gedeeld, setGedeeld] = useState<string | null>(null);
 
   // Metingen per "clubId|datum", opgehaald op aanvraag voor de zichtbare selectie.
   const [metingen, setMetingen] = useState<Map<string, Meting>>(new Map());
@@ -398,6 +401,44 @@ export default function RadarPage() {
   };
 
   /**
+   * "Deel met je groep" — Xander (3 aug 2026): padellen speel je met z'n
+   * vieren, dus een gevonden plek delen met je vaste maatjes is de
+   * goedkoopste manier om iemand anders VrijeBaan te laten proberen. Deelt
+   * dezelfde zoek-URL als de Telegram-bot al gebruikt (lat/lon/straal/datum/
+   * tijd), zodat wie erop klikt precies dezelfde zoekopdracht ziet.
+   *
+   * navigator.share (mobiel: opent het native deelmenu, rechtstreeks naar
+   * WhatsApp e.d.) heeft de voorkeur; zonder die API (vooral desktop) valt
+   * dit terug op de tekst naar het klembord kopiëren.
+   */
+  const deelClub = async (club: Club) => {
+    if (!zoekgebied) return;
+    const params = new URLSearchParams({
+      lat: String(zoekgebied.lat),
+      lon: String(zoekgebied.lon),
+      plaats: zoekgebied.plaatsnaam,
+      straal: String(straalKm),
+      datum: gekozenDatum,
+    });
+    if (voorkeurstijd) params.set("tijd", voorkeurstijd);
+    const url = `${window.location.origin}/radar?${params.toString()}`;
+    const dagIndex = dagen.indexOf(gekozenDatum);
+    const tekst = `Kijk of er nog plek is bij ${club.naam} (${dagLabel(gekozenDatum, dagIndex === -1 ? 0 : dagIndex).toLowerCase()}): ${url}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: tekst });
+      } catch {
+        // Gebruiker annuleerde het deelmenu — geen foutmelding nodig.
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(tekst);
+    setGedeeld(club.id);
+    setTimeout(() => setGedeeld((huidig) => (huidig === club.id ? null : huidig)), 2000);
+  };
+
+  /**
    * Op een tijd klikken: open de juiste clubpagina (met de datum erin waar dat
    * kan) en kopieer de tijd, zodat de gebruiker die alleen nog hoeft te plakken
    * of te herkennen. De tijd meesturen in de URL kan bij geen enkele aanbieder
@@ -717,6 +758,10 @@ export default function RadarPage() {
                   <button onClick={() => toggle(club.id)}
                     className={`rounded-md px-4 py-2 text-sm font-medium transition ${isGevolgd ? "bg-court-600 text-white hover:bg-court-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
                     {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
+                  </button>
+                  <button onClick={() => deelClub(club)} disabled={!zoekgebied}
+                    className="text-xs font-medium text-slate-500 hover:text-court-700 disabled:opacity-50">
+                    {gedeeld === club.id ? "Gekopieerd ✓" : "Deel met je groep"}
                   </button>
                   {/* Bij een ledenclub is het boekingssysteem afgeschermd, dus
                       wijst "Boek hier" naar de clubsite: daar staat hoe je als
