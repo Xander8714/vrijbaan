@@ -16,7 +16,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.ap
 // Zelfde bescherming als in src/app/api/auth/telegram-login/route.ts: alleen
 // een relatief pad toestaan, anders zou `next` een open-redirect zijn.
 function veiligPad(pad: string | null): string {
-  if (!pad || !pad.startsWith("/") || pad.startsWith("//")) return "/account";
+  if (!pad || !pad.startsWith("/") || pad.startsWith("//")) return "/radar";
   return pad;
 }
 

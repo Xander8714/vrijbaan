@@ -25,6 +25,9 @@ const OPSLAG_SLEUTEL = "vrijbaan-zoekgebied";
 const LID_SLEUTEL = "vrijbaan-lidmaatschappen";
 const MARGE_OPTIES = [1, 2, 3];
 
+// Zonder account alleen vandaag + morgen — zie de toelichting bij `dagen`.
+const DAGEN_ZONDER_ACCOUNT = 2;
+
 // Zelfde grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts — hier
 // nogmaals, zodat de UI al vóór het verzoek kan zeggen dat het te veel is.
 const MAX_ZICHTBAAR = 20;
@@ -58,11 +61,18 @@ export default function RadarPage() {
   // runs per bezoek, zie DAGEN_VOORUIT hierboven) breidt dit alleen uit als
   // er ook echt zo'n link gevolgd is.
   const [extraDagUitLink, setExtraDagUitLink] = useState<string | null>(null);
+  // Zonder account alleen vandaag/morgen tonen, een week vooruit is voor
+  // ingelogde gebruikers — Xander (4 aug 2026): "als niet lid alleen
+  // vandaag en morgen ... registreer jezelf als je een week vooruit wil
+  // boeken". `!laden` wachten voorkomt dat de knoppenrij eerst op 7 dagen
+  // begint en daarna terugklapt naar 2 zodra bekend is dat er geen sessie
+  // is — dan liever meteen goed.
   const dagen = useMemo(() => {
     const basis = komendeDagen();
-    if (extraDagUitLink && !basis.includes(extraDagUitLink)) return [...basis, extraDagUitLink].sort();
-    return basis;
-  }, [extraDagUitLink]);
+    const zichtbaar = !laden && !userId ? basis.slice(0, DAGEN_ZONDER_ACCOUNT) : basis;
+    if (extraDagUitLink && !zichtbaar.includes(extraDagUitLink)) return [...zichtbaar, extraDagUitLink].sort();
+    return zichtbaar;
+  }, [extraDagUitLink, laden, userId]);
   // Standaard actuele tijd ± 2 uur — Xander (30 juli 2026): "pak altijd de
   // actuele tijd, behalve als het later is dan 21 uur, want dan is de
   // persoon op zoek naar de volgende dag". Beide zijn lazy useState-
@@ -815,6 +825,14 @@ export default function RadarPage() {
             </button>
           ))}
         </div>
+
+        {!laden && !userId && (
+          <p className="mt-2 text-xs text-slate-500">
+            Zonder account alleen vandaag en morgen.{" "}
+            <Link href="/login" className="font-medium text-court-700 underline">Registreer jezelf</Link> als je een
+            week vooruit wil boeken.
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-end gap-4">
           <div>

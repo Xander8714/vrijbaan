@@ -46,14 +46,15 @@ function LoginFormulier() {
 
   // Google logt in óf maakt het account aan, al naar gelang of dit
   // e-mailadres al bekend is — dezelfde knop dekt dus zowel "inloggen" als
-  // "registreren". next=/account: eerste keer landt de gebruiker meteen bij
-  // het profiel, net als na een gewone e-mailregistratie.
+  // "registreren". next=/radar: Xander (4 aug 2026): "na het inloggen niet
+  // naar account maar naar de radar" — dat is waar iemand na inloggen
+  // meteen iets aan heeft, i.p.v. eerst langs het profielformulier.
   const inloggenMetGoogle = async () => {
     setBericht(null); setBezig(true);
     const supabase = supabaseBrowser();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/account` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/radar` },
     });
     // Bij succes navigeert de browser meteen weg naar Google — bezig blijft
     // dan bewust op true (er is geen "klaar"-moment op deze pagina zelf).
@@ -114,7 +115,9 @@ function LoginFormulier() {
       }).catch(() => {});
       return;
     }
-    router.push("/account"); router.refresh();
+    // Xander (4 aug 2026): "na het inloggen niet naar account maar naar de
+    // radar" — zelfde reden als bij inloggenMetGoogle hierboven.
+    router.push("/radar"); router.refresh();
   };
 
   const kop = modus === "inloggen" ? "Inloggen" : modus === "registreren" ? "Account aanmaken" : "Wachtwoord vergeten";

@@ -131,10 +131,15 @@ export default function ProfielFormulier({
       .update({
         voornaam: profiel.voornaam,
         achternaam: profiel.achternaam,
+        // speelsterkte/bondsnummer staan niet meer in het formulier hieronder
+        // (Xander, 4 aug 2026: "kan voorlopig eruit ... zie ik in de
+        // toekomst pas terugkomen bij bv. zoek padelmaatjes"), maar blijven
+        // hier gewoon meegestuurd zodat een al ingevulde waarde (bv. via de
+        // oude KNLTB-koppeling) niet per ongeluk wordt overschreven met iets
+        // anders — profiel.speelsterkte/bondsnummer veranderen nu simpelweg
+        // nooit meer, want er is geen input meer die ze bijwerkt.
         speelsterkte: profiel.speelsterkte,
-        // Handmatig invullen overschrijft een eerdere KNLTB-herkomst; dat moet
-        // zichtbaar blijven, anders lijkt een zelf getypt getal officieel.
-        speelsterkte_bron: profiel.speelsterkte === null ? null : "handmatig",
+        speelsterkte_bron: profiel.speelsterkteBron,
         bondsnummer: profiel.bondsnummer,
         telefoon: profiel.telefoon,
         straat: profiel.straat,
@@ -164,7 +169,7 @@ export default function ProfielFormulier({
 
   const tekstveld = (
     label: string,
-    veld: "voornaam" | "achternaam" | "straat" | "huisnummer" | "postcode" | "woonplaats" | "bondsnummer",
+    veld: "voornaam" | "achternaam" | "straat" | "huisnummer" | "postcode" | "woonplaats",
     placeholder = ""
   ) => (
     <div>
@@ -186,24 +191,6 @@ export default function ProfielFormulier({
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {tekstveld("Voornaam", "voornaam")}
           {tekstveld("Achternaam", "achternaam")}
-          <div>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="veld-speelsterkte">
-              Speelsterkte (1 = sterkst, 9 = beginner)
-            </label>
-            <input
-              id="veld-speelsterkte"
-              type="number" step="0.1" min="1" max="9"
-              value={profiel.speelsterkte ?? ""}
-              onChange={(e) => zet("speelsterkte", e.target.value === "" ? null : Number(e.target.value))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            {profiel.speelsterkteBron && (
-              <p className="mt-1 text-xs text-slate-500">
-                Huidige bron: {profiel.speelsterkteBron === "knltb" ? "opgehaald bij de KNLTB" : "zelf ingevuld"}
-              </p>
-            )}
-          </div>
-          {tekstveld("KNLTB-bondsnummer", "bondsnummer", "optioneel")}
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="veld-telefoon">
               Mobiel nummer
