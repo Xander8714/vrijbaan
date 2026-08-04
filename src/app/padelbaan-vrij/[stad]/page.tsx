@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { STAD_SLUGS, haalStadData, clubsOpAfstand, boekingssystemenTekst, type StadSlug } from "@/lib/stadsPaginas";
+import StadKaart from "@/components/StadKaart";
 
 // Straal voor de Radar-CTA: bewust klein gehouden (4 aug 2026, Xander: "een
 // korte range van max 5km anders blijft die laden") — bij een straal als de
@@ -71,6 +72,9 @@ export default async function StadPagina({ params }: { params: Promise<{ stad: s
       </Link>
 
       <h2 className="mt-10 text-xl font-semibold text-slate-900">Clubs in {info.naam}</h2>
+      {/* Kaart met een pin per club (4 aug 2026, Xander) — zie StadKaart.tsx
+          voor waarom dit Leaflet/OpenStreetMap is i.p.v. de Google Maps API. */}
+      <StadKaart clubs={clubs} centrum={info.centrum} />
       <ul className="mt-4 space-y-2">
         {clubs.map((club) => (
           <li key={club.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
