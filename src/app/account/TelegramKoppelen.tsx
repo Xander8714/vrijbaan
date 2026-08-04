@@ -25,9 +25,17 @@ function genereerKoppelCode(): string {
 export default function TelegramKoppelen({
   userId,
   beginChatId,
+  heeftTelefoon,
 }: {
   userId: string;
   beginChatId: number | null;
+  // Xander (4 aug 2026): "ik kan de knop telegram nog aanklikken voor mn
+  // mobiele nummer opgeslagen is" — koppelen mag pas nadat er een
+  // telefoonnummer op het profiel staat (toekomstige sms/WhatsApp-
+  // meldingen hebben dat nodig). Komt uit rij?.telefoon op de server; wordt
+  // pas ververst na een router.refresh() vanuit ProfielFormulier, dus
+  // meteen na het opslaan van een nummer is een enkele refresh nodig.
+  heeftTelefoon: boolean;
 }) {
   const [chatId, setChatId] = useState(beginChatId);
   const [bezig, setBezig] = useState(false);
@@ -101,6 +109,10 @@ export default function TelegramKoppelen({
             Ontkoppelen
           </button>
         </div>
+      ) : !heeftTelefoon ? (
+        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Vul eerst je mobiele nummer in bij &quot;Mijn gegevens&quot; hieronder, dan kun je Telegram koppelen.
+        </p>
       ) : (
         <div className="mt-3">
           <button onClick={startKoppelen} disabled={bezig}

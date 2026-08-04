@@ -107,7 +107,7 @@ export default async function AccountPage({
           een nieuwe gebruiker daadwerkelijk terug laat komen (meldingen), dus
           die hoort bovenaan, niet achter een lang profielformulier verstopt. */}
       <div className="mt-6">
-        <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} />
+        <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} heeftTelefoon={!!rij?.telefoon} />
       </div>
 
       <ProfielFormulier userId={user.id} beginProfiel={profiel} />

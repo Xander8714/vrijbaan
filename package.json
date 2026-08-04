@@ -15,7 +15,8 @@
     "discover:playtomic": "tsx scripts/discover-playtomic-clubs.ts",
     "discover:meetandplay": "tsx scripts/discover-meetandplay-clubs.ts",
     "check": "tsx scripts/check-beschikbaarheid.ts",
-    "ververs:clubdata": "tsx scripts/ververs-clubdata.ts"
+    "ververs:clubdata": "tsx scripts/ververs-clubdata.ts",
+    "opschonen:beschikbaarheid": "tsx scripts/opschonen-beschikbaarheid.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

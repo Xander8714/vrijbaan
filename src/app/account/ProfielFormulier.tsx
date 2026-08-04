@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
 import type { Profiel } from "@/lib/types";
@@ -42,6 +43,7 @@ export default function ProfielFormulier({
   userId: string;
   beginProfiel: Profiel;
 }) {
+  const router = useRouter();
   // Bestaande, niet-herkende lidmaatschappen (zoals "hofgeest" ingetypt vóór
   // deze club een echte match kon zijn) meteen bij het laden proberen te
   // herkennen — dan klopt het label al zonder dat de gebruiker iets hoeft te
@@ -126,9 +128,18 @@ export default function ProfielFormulier({
     if (telefoonFout) { setFout("Los eerst het telefoonnummer op, of maak het veld leeg."); return; }
     setBezig(true);
     const supabase = supabaseBrowser();
+    // upsert i.p.v. update — Xander (4 aug 2026): een testaccount
+    // (vdheuvelx@gmail.com) bleek een auth.users-rij te hebben zonder
+    // bijbehorende profiles-rij (de on_auth_user_created-trigger had 'm om
+    // onduidelijke reden niet aangemaakt). Met .update() slaagt zo'n opslag
+    // stilzwijgend zonder ook maar iets weg te schrijven (0 rijen geraakt,
+    // geen foutmelding) — "Gegevens opgeslagen ✓" terwijl er niets
+    // opgeslagen is. upsert() maakt de rij alsnog aan als hij ontbreekt, dus
+    // stille dataverlies kan hierdoor niet meer.
     const { error } = await supabase
       .from("profiles")
-      .update({
+      .upsert({
+        id: userId,
         voornaam: profiel.voornaam,
         achternaam: profiel.achternaam,
         // speelsterkte/bondsnummer staan niet meer in het formulier hieronder
@@ -150,8 +161,7 @@ export default function ProfielFormulier({
         lon: profiel.lon,
         zoekstraal_km: profiel.zoekstraalKm,
         lidmaatschappen: profiel.lidmaatschappen,
-      })
-      .eq("id", userId);
+      });
     setBezig(false);
     if (error) {
       // Ontbrekende kolommen = migratie nog niet gedraaid. Noem het bestand,
@@ -165,6 +175,10 @@ export default function ProfielFormulier({
       return;
     }
     setStatus("Gegevens opgeslagen ✓");
+    // Ververst de server-component erboven (account/page.tsx), zodat bv.
+    // TelegramKoppelen meteen weet dat er nu een telefoonnummer is — zonder
+    // dit blijft die knop tot een handmatige paginaherlaad geblokkeerd staan.
+    router.refresh();
   };
 
   const tekstveld = (
@@ -201,11 +215,15 @@ export default function ProfielFormulier({
               inputMode="tel"
               value={telefoonInvoer}
               onChange={(e) => werkTelefoonBij(e.target.value)}
-              placeholder="06 12345678 (optioneel)"
+              placeholder="06 12345678"
               className={`mt-1 w-full rounded-md border px-3 py-2 text-sm ${telefoonFout ? "border-red-400" : "border-slate-300"}`}
             />
+            {/* Oude tekst ("voor toekomstige sms/WhatsApp-meldingen") klopte
+                niet meer zodra Telegram-koppelen hier bewust van afhangt —
+                Xander (4 aug 2026): "dit moet er ook uit". Nieuwe tekst legt
+                uit wat het nummer NU al doet, i.p.v. een belofte voor later. */}
             <p className={`mt-1 text-xs ${telefoonFout ? "text-red-600" : "text-slate-500"}`}>
-              {telefoonFout ?? "Optioneel — voor toekomstige meldingen per sms/WhatsApp. Alleen mobiele nummers."}
+              {telefoonFout ?? "Nodig om Telegram te koppelen."}
             </p>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { POLL_CONFIG } from "@/lib/pollConfig";
 import { fetchFoysAvailability } from "@/lib/scrapers/foys";
 import { formatEuro } from "@/lib/geld";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * Beschikbaarheid op aanvraag: alleen voor de clubs die de gebruiker ná
@@ -84,7 +85,50 @@ export type ClubBeschikbaarheid = {
 const CACHE_TTL_MS = 90_000;
 const cache = new Map<string, { sloten: Slot[]; verlooptOp: number }>();
 
+/**
+ * `club_beschikbaarheid` wordt al elke 5 minuten ververst door
+ * scripts/poll-availability.ts voor elke gevolgde club — maar deze route
+ * keek daar tot 4 aug 2026 nooit naar en scraapte altijd opnieuw live, ook
+ * voor een club die een halve minuut eerder al door de poller ververst was.
+ * Xander: "als je clubs opslaat gaan de tijden dan sneller laden?" — voor
+ * gevolgde/al-gepolde clubs wel: dit slaat de hele live scrape (Foys-call of
+ * 15-20s Playwright) over.
+ *
+ * VERS_GRENS_MS iets ruimer dan het poll-interval van 5 min, zodat een
+ * cyclus die een paar seconden uitloopt niet meteen als "te oud" telt.
+ * Ouder dan dat, of geen rij: gewoon terugvallen op live scrapen — deze
+ * functie mag NOOIT de hoofd-flow blokkeren of vertragen op een database-
+ * probleem, vandaar de try/catch die altijd op null uitkomt i.p.v. gooit.
+ */
+const VERS_GRENS_MS = 6 * 60 * 1000;
+
+async function slotenUitDatabase(clubId: string, datum: string): Promise<Slot[] | null> {
+  try {
+    const supabase = supabaseAdmin();
+    const { data } = await supabase
+      .from("club_beschikbaarheid")
+      .select("slots, bijgewerkt_op")
+      .eq("club_id", clubId)
+      .eq("datum", datum)
+      .maybeSingle();
+    if (!data) return null;
+    const leeftijdMs = Date.now() - new Date(data.bijgewerkt_op).getTime();
+    if (leeftijdMs > VERS_GRENS_MS) return null;
+
+    const ruw = data.slots as { startTime: string; prijs?: string | null }[];
+    return ruw
+      .map((s) => ({ tijd: s.startTime, prijs: s.prijs ?? null }))
+      .sort((a, b) => a.tijd.localeCompare(b.tijd));
+  } catch (err) {
+    console.error(`[beschikbaarheid] db-cache lezen mislukt voor ${clubId} (${datum}), val terug op live scrapen:`, (err as Error).message);
+    return null;
+  }
+}
+
 async function slotenVoorClubMetCache(clubId: string, datum: string): Promise<Slot[]> {
+  const uitDb = await slotenUitDatabase(clubId, datum);
+  if (uitDb !== null) return uitDb;
+
   const sleutel = `${clubId}:${datum}`;
   const bestaand = cache.get(sleutel);
   const nu = Date.now();
