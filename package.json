@@ -14,7 +14,8 @@
     "import:foys": "tsx scripts/import-foys-clubs.ts",
     "discover:playtomic": "tsx scripts/discover-playtomic-clubs.ts",
     "discover:meetandplay": "tsx scripts/discover-meetandplay-clubs.ts",
-    "check": "tsx scripts/check-beschikbaarheid.ts"
+    "check": "tsx scripts/check-beschikbaarheid.ts",
+    "ververs:clubdata": "tsx scripts/ververs-clubdata.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
