@@ -63,10 +63,14 @@ export default function StadKaart({ clubs, centrum }: Props) {
       });
 
       const grenzen = L.latLngBounds([]);
-      clubs.forEach((club) => {
-        const positie: [number, number] = [club.lat, club.lon];
+      verspreidOverlappendeClubs(clubs).forEach(({ kaartLat, kaartLon, ...club }) => {
+        const positie: [number, number] = [kaartLat, kaartLon];
         grenzen.extend(positie);
-        const radarLink = `/radar?lat=${club.lat}&lon=${club.lon}&plaats=${encodeURIComponent(club.naam)}&straal=2`;
+        // De Radar-link gebruikt bewust het échte adres (club.lat/lon), niet
+        // de licht verschoven kaartpositie hierboven — die verschuiving is
+        // puur om overlappende pins uit elkaar te trekken, geen wijziging
+        // van de werkelijke locatie.
+        const radarLink = `/radar?lat=${club.lat}&lon=${club.lon}&plaats=${encodeURIComponent(club.naam)}&straal=5`;
         const popupHtml = `
           <div style="font-family:inherit;min-width:170px">
             <p style="margin:0;font-weight:600;color:#0f172a">${escapeHtml(club.naam)}</p>
@@ -104,4 +108,50 @@ export default function StadKaart({ clubs, centrum }: Props) {
 // toevallige &/</> ooit de popup-opmaak breekt.
 function escapeHtml(tekst: string): string {
   return tekst.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ~50m — puur voor de weergave op de kaart, verandert niets aan de
+// opgeslagen coördinaten.
+const KAART_SPREIDING_GRADEN = 0.00045;
+
+/**
+ * Meerdere clubs delen soms exact dezelfde coördinaat (bv. verenigingen
+ * waarvan alleen de woonplaats bekend is, zie coordinaatBron in clubs.ts) —
+ * daardoor verdwenen ze als één pin op de kaart, terwijl het lijstje
+ * eronder wél alle clubs los toont. Xander (4 aug 2026): "ik zie maar 2
+ * clubs op de kaart terwijl er 6 in het lijstje staan". Clubs met identieke
+ * coördinaten zetten we hier in een kleine cirkel om dat punt, zodat elke
+ * club een eigen, aanklikbare pin krijgt.
+ */
+function verspreidOverlappendeClubs<T extends { lat: number; lon: number }>(
+  clubs: T[]
+): (T & { kaartLat: number; kaartLon: number })[] {
+  const groepen = new Map<string, T[]>();
+  for (const club of clubs) {
+    const sleutel = `${club.lat.toFixed(5)},${club.lon.toFixed(5)}`;
+    const groep = groepen.get(sleutel);
+    if (groep) groep.push(club);
+    else groepen.set(sleutel, [club]);
+  }
+
+  const resultaat: (T & { kaartLat: number; kaartLon: number })[] = [];
+  for (const groep of groepen.values()) {
+    if (groep.length === 1) {
+      resultaat.push({ ...groep[0], kaartLat: groep[0].lat, kaartLon: groep[0].lon });
+      continue;
+    }
+    // Langtegraden worden "korter" naarmate de breedtegraad hoger is —
+    // delen door cos(breedtegraad) houdt de cirkel visueel rond i.p.v.
+    // een ellips.
+    const lengtegraadCorrectie = Math.cos((groep[0].lat * Math.PI) / 180) || 1;
+    groep.forEach((club, i) => {
+      const hoek = (2 * Math.PI * i) / groep.length;
+      resultaat.push({
+        ...club,
+        kaartLat: club.lat + KAART_SPREIDING_GRADEN * Math.sin(hoek),
+        kaartLon: club.lon + (KAART_SPREIDING_GRADEN * Math.cos(hoek)) / lengtegraadCorrectie,
+      });
+    });
+  }
+  return resultaat;
 }
