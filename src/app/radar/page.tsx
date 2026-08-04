@@ -94,7 +94,6 @@ export default function RadarPage() {
 
   const [zoekgebied, setZoekgebied] = useState<Zoekgebied | null>(null);
   const [straalKm, setStraalKm] = useState(10);
-  const [negeerStraal, setNegeerStraal] = useState(false);
   const [bewaarStatus, setBewaarStatus] = useState<string | null>(null);
   const [locatieBezig, setLocatieBezig] = useState(false);
   const [locatieFout, setLocatieFout] = useState<string | null>(null);
@@ -152,7 +151,6 @@ export default function RadarPage() {
         }
         const nieuw: Zoekgebied = { lat: latitude, lon: longitude, plaatsnaam, straalKm };
         setZoekgebied(nieuw);
-        setNegeerStraal(false);
         window.localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(nieuw));
         setLocatieBezig(false);
       },
@@ -306,12 +304,12 @@ export default function RadarPage() {
    * maken.
    */
   const clubsInStraal = useMemo(() => {
-    if (!zoekgebied || negeerStraal) return kandidaatClubs.map((club) => ({ ...club, afstandKm: null as number | null }));
+    if (!zoekgebied) return kandidaatClubs.map((club) => ({ ...club, afstandKm: null as number | null }));
     return kandidaatClubs
       .map((club) => ({ ...club, afstandKm: afgerondeAfstand({ lat: zoekgebied.lat, lon: zoekgebied.lon }, club) }))
       .filter((club) => club.afstandKm <= straalKm || gevolgd.has(club.id))
       .sort((a, b) => a.afstandKm - b.afstandKm);
-  }, [kandidaatClubs, zoekgebied, straalKm, negeerStraal, gevolgd]);
+  }, [kandidaatClubs, zoekgebied, straalKm, gevolgd]);
 
   /**
    * Beschikbaarheid halen we op voor precies de clubs die na het straal-filter
@@ -381,7 +379,6 @@ export default function RadarPage() {
   const kiesLocatie = (loc: GevondenLocatie) => {
     const nieuw: Zoekgebied = { lat: loc.lat, lon: loc.lon, plaatsnaam: loc.woonplaatsnaam ?? loc.weergavenaam, straalKm };
     setZoekgebied(nieuw);
-    setNegeerStraal(false);
     setBewaarStatus(null);
     window.localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(nieuw));
   };
@@ -492,10 +489,213 @@ export default function RadarPage() {
       // Filteren op voorkeurstijd mag alleen clubs wegstrepen waarvan we
       // écht weten dat ze niets hebben. Een club zonder (geslaagde) meting
       // verbergen zou hem onterecht als "vol" laten lijken.
-      .filter((club) => !voorkeurstijd || !club.meting || club.meting.fout || club.passendeTijden.length > 0);
-  }, [clubsInStraal, metingen, gekozenDatum, voorkeurstijd, margeUren]);
+      //
+      // BEWUST OOK niet filteren zolang metingBezig nog aan staat (Xander,
+      // 4 aug 2026: "als ik op zoek nu klik dan valt alles weg en de
+      // aantallen kloppen niet") — zonder deze voorwaarde verdween elke club
+      // zodra ZIJN meting binnenkwam en niets paste, terwijl de rest van de
+      // batch nog liep. Dat liet de lijst live krimpen tijdens het laden en
+      // het "ophalen bij N clubs"-bericht (dat clubsInStraal.length gebruikt,
+      // niet dit gefilterde aantal) niet meer overeenkomen met de zichtbare
+      // koptekst. Nu blijft de lijst tijdens het laden stabiel en wordt pas
+      // in één keer gefilterd zodra de hele batch klaar is.
+      .filter((club) => metingBezig || !voorkeurstijd || !club.meting || club.meting.fout || club.passendeTijden.length > 0);
+  }, [clubsInStraal, metingen, gekozenDatum, voorkeurstijd, margeUren, metingBezig]);
 
   const metPassendeTijd = zichtbareClubs.filter((c) => c.passendeTijden.length > 0).length;
+
+  // Gevolgde clubs krijgen een eigen strook boven de rest (Xander, 4 aug
+  // 2026: "maak een strook tussen met gevolgde clubs") — zo hoef je niet
+  // door alles heen te scrollen om te zien of je eigen clubs al iets vrij
+  // hebben. "Overige clubs" heet alleen zo zodra die strook er ook echt is;
+  // zonder gevolgde clubs blijft het gewoon één lijst.
+  const gevolgdeClubs = zichtbareClubs.filter((c) => gevolgd.has(c.id));
+  const overigeClubs = zichtbareClubs.filter((c) => !gevolgd.has(c.id));
+
+  // Eén kaart-render voor beide stroken (was een enkele .map() met de hele
+  // kaart inline) — Xander (4 aug 2026): compactere kaart, "Volg"/"Deel"
+  // naast elkaar i.p.v. gestapeld, en "Boek hier" weg (gaat al via de groene
+  // tijd-knoppen). De "Naar de clubsite →"-link voor ledenclubs blijft wél
+  // staan: daar is géén groene knop-route, boeken kan alleen via de club
+  // zelf.
+  const renderKaart = (club: (typeof zichtbareClubs)[number]) => {
+    const isGevolgd = gevolgd.has(club.id);
+    const isLedenClub = club.boekbaarZonderLidmaatschap === false;
+    const clubsiteUrl = isLedenClub ? club.websiteUrl ?? club.boekingsUrl : null;
+
+    return (
+      <div key={club.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-slate-900">{club.naam}</p>
+            <p className="text-sm text-slate-500">
+              {club.plaats} · {club.banen > 0 ? `${club.banen} banen · ` : ""}{club.systeem}
+              {club.afstandKm !== null && (
+                <>
+                  {" · "}
+                  <span className="font-medium text-slate-700">{club.afstandKm} km</span>
+                  {club.coordinaatBron === "woonplaats" && (
+                    <span className="text-slate-400" title="Afstand tot het midden van de plaats, niet tot het exacte clubadres"> (ca.)</span>
+                  )}
+                </>
+              )}
+            </p>
+            {club.adres && <p className="text-xs text-slate-400">{club.adres}</p>}
+            {club.boekbaarZonderLidmaatschap === null && (
+              <p className="mt-1 text-xs text-amber-700">
+                Vereniging — of je hier als niet-lid kunt boeken is nog niet nagegaan.
+              </p>
+            )}
+            {club.meting?.fout && <p className="mt-1 text-xs text-amber-700">{club.meting.fout}</p>}
+          </div>
+          {clubsiteUrl && (
+            <a
+              href={clubsiteUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-xs font-medium text-court-700 underline"
+            >
+              Naar de clubsite →
+            </a>
+          )}
+        </div>
+
+        <div className="mt-2 flex items-center gap-2">
+          <button onClick={() => toggle(club.id)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${isGevolgd ? "bg-court-600 text-white hover:bg-court-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
+            {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
+          </button>
+          <button onClick={() => deelClub(club)} disabled={!zoekgebied}
+            className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+              <path d="M12 16V4M12 4 7.5 8.5M12 4l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {gedeeld === club.id ? "Gekopieerd ✓" : "Deel met je groep"}
+          </button>
+        </div>
+
+        {/* Vrije tijden zelf tonen, niet alleen het aantal — PROJECTPLAN.md §3. */}
+        {club.meting && !club.meting.fout && (
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            {club.sloten.length > 0 ? (() => {
+              const open = uitgeklapt.has(club.id);
+              // Bij een voorkeurstijd eerst de matchende tijden tonen, dan de
+              // rest erachteraan — anders kon de standaardweergave (eerste 5)
+              // volledig uit niet-matchende tijden bestaan terwijl de
+              // gezochte tijd pas achter "Toon nog N tijden" zat.
+              const gesorteerd = voorkeurstijd
+                ? [...club.sloten].sort((a, b) => {
+                    const aPast = binnenTijdvenster(a.tijd, voorkeurstijd, margeUren) ? 0 : 1;
+                    const bPast = binnenTijdvenster(b.tijd, voorkeurstijd, margeUren) ? 0 : 1;
+                    return aPast - bPast || a.tijd.localeCompare(b.tijd);
+                  })
+                : club.sloten;
+              const teTonen = open ? gesorteerd : gesorteerd.slice(0, MAX_TIJDEN_ZICHTBAAR);
+              const verborgen = club.sloten.length - teTonen.length;
+              // Losse knop-render, gedeeld tussen de "past bij je voorkeur"-
+              // en de "overige tijden"-groep hieronder.
+              const slotKnop = (slot: Slot, past: boolean) => (
+                <li key={slot.tijd}>
+                  <button
+                    type="button"
+                    onClick={() => kiesTijd(club, slot.tijd)}
+                    title={`Boek ${slot.tijd} bij ${club.naam}${slot.prijs ? ` (${slot.prijs})` : ""}`}
+                    className={`rounded-md px-2 py-1 text-xs font-medium transition hover:ring-2 hover:ring-court-400 ${
+                      past ? "bg-court-100 text-court-900" : "bg-slate-50 text-slate-400"
+                    }`}
+                  >
+                    {slot.tijd}
+                    {slot.prijs && <span className="ml-1 opacity-70">· {slot.prijs}</span>}
+                  </button>
+                </li>
+              );
+
+              // Met een voorkeurstijd: twee losse, gelabelde groepen i.p.v.
+              // één lijst met alleen een kleurverschil — Xander (2 aug
+              // 2026): "een scheiding tussen voorkeurstijd groen en
+              // daaronder overige beschikbare tijden grijs". De
+              // matchende tijden staan altijd volledig (meestal maar een
+              // paar); "Toon nog N" geldt alleen voor de overige groep.
+              if (voorkeurstijd) {
+                const passend = gesorteerd.filter((s) => binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
+                const overig = gesorteerd.filter((s) => !binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
+                const overigTeTonen = open ? overig : overig.slice(0, MAX_TIJDEN_ZICHTBAAR);
+                const overigVerborgen = overig.length - overigTeTonen.length;
+                return (
+                  <>
+                    <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <BalIcon className="h-3.5 w-3.5" />
+                      {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
+                    </p>
+                    {passend.length > 0 && (
+                      <>
+                        <p className="mt-2 text-xs font-medium text-court-700">
+                          Past bij {voorkeurstijd} (± {margeUren} uur)
+                        </p>
+                        <ul className="mt-1 flex flex-wrap gap-1.5">{passend.map((s) => slotKnop(s, true))}</ul>
+                      </>
+                    )}
+                    {overig.length > 0 && (
+                      <>
+                        <p className="mt-3 text-xs font-medium text-slate-500">Overige tijden</p>
+                        <ul className="mt-1 flex flex-wrap gap-1.5">{overigTeTonen.map((s) => slotKnop(s, false))}</ul>
+                        {overigVerborgen > 0 && (
+                          <button type="button" onClick={() => wisselUitklap(club.id)}
+                            className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
+                            + Toon nog {overigVerborgen} {overigVerborgen === 1 ? "tijd" : "tijden"}
+                          </button>
+                        )}
+                        {open && overig.length > MAX_TIJDEN_ZICHTBAAR && (
+                          <button type="button" onClick={() => wisselUitklap(club.id)}
+                            className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
+                            Toon minder
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <p className="mt-2 text-xs text-slate-400">Klik op een tijd om naar de boekingspagina te gaan.</p>
+                  </>
+                );
+              }
+
+              // Geen voorkeurstijd: gewoon één platte lijst.
+              return (
+                <>
+                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <BalIcon className="h-3.5 w-3.5" />
+                    {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-1.5">{teTonen.map((s) => slotKnop(s, true))}</ul>
+                  {verborgen > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => wisselUitklap(club.id)}
+                      className="mt-1.5 text-xs font-medium text-court-700 hover:underline"
+                    >
+                      + Toon nog {verborgen} {verborgen === 1 ? "tijd" : "tijden"}
+                    </button>
+                  )}
+                  {open && club.sloten.length > MAX_TIJDEN_ZICHTBAAR && (
+                    <button
+                      type="button"
+                      onClick={() => wisselUitklap(club.id)}
+                      className="mt-1.5 text-xs font-medium text-court-700 hover:underline"
+                    >
+                      Toon minder
+                    </button>
+                  )}
+                  <p className="mt-1 text-xs text-slate-400">Klik op een tijd om naar de boekingspagina te gaan.</p>
+                </>
+              );
+            })() : (
+              <p className="text-xs text-slate-500">Geen vrije tijden op deze dag.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -548,12 +748,6 @@ export default function RadarPage() {
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
             Bewaar zoekgebied
           </button>
-          {zoekgebied && (
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={negeerStraal} onChange={(e) => setNegeerStraal(e.target.checked)} />
-              Toon alle clubs (straal negeren)
-            </label>
-          )}
           {bewaarStatus && <span className="text-xs text-slate-500">{bewaarStatus}</span>}
         </div>
 
@@ -718,7 +912,7 @@ export default function RadarPage() {
 
       <h2 className="mt-8 font-semibold text-slate-900">
         {zichtbareClubs.length} {zichtbareClubs.length === 1 ? "club" : "clubs"}
-        {zoekgebied && !negeerStraal ? ` binnen ${straalKm} km` : ""}
+        {zoekgebied ? ` binnen ${straalKm} km` : ""}
       </h2>
 
       {/* Boven de grens halen we bewust niets op: dat zou minuten duren. */}
@@ -726,7 +920,7 @@ export default function RadarPage() {
         <div className="mt-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <strong>{clubsInStraal.length} clubs is te veel om live op te vragen.</strong> We halen beschikbaarheid
           op bij de boekingssystemen zelf, en dat kost per club een paar seconden. Maak je selectie kleiner
-          (maximaal {MAX_ZICHTBAAR}) — zet bijvoorbeeld de straal lager of vink &quot;Toon alle clubs&quot; uit.
+          (maximaal {MAX_ZICHTBAAR}) — zet bijvoorbeeld de straal lager.
         </div>
       )}
 
@@ -755,198 +949,31 @@ export default function RadarPage() {
         </p>
       )}
 
-      <div className="mt-3 space-y-3">
-        {zichtbareClubs.map((club) => {
-          const isGevolgd = gevolgd.has(club.id);
-          return (
-            <div key={club.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-slate-900">{club.naam}</p>
-                  <p className="text-sm text-slate-500">
-                    {club.plaats} · {club.banen > 0 ? `${club.banen} banen · ` : ""}{club.systeem}
-                    {club.afstandKm !== null && (
-                      <>
-                        {" · "}
-                        <span className="font-medium text-slate-700">{club.afstandKm} km</span>
-                        {club.coordinaatBron === "woonplaats" && (
-                          <span className="text-slate-400" title="Afstand tot het midden van de plaats, niet tot het clubadres"> (ca.)</span>
-                        )}
-                      </>
-                    )}
-                  </p>
-                  {club.adres && <p className="text-xs text-slate-400">{club.adres}</p>}
-                  {club.boekbaarZonderLidmaatschap === null && (
-                    <p className="mt-1 text-xs text-amber-700">
-                      Vereniging — of je hier als niet-lid kunt boeken is nog niet nagegaan.
-                    </p>
-                  )}
-                  {club.meting?.fout && (
-                    <p className="mt-1 text-xs text-amber-700">{club.meting.fout}</p>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  <button onClick={() => toggle(club.id)}
-                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${isGevolgd ? "bg-court-600 text-white hover:bg-court-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
-                    {isGevolgd ? "Wordt gevolgd ✓" : "Volg deze club"}
-                  </button>
-                  <button onClick={() => deelClub(club)} disabled={!zoekgebied}
-                    className="flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
-                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                      <path d="M12 16V4M12 4 7.5 8.5M12 4l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {gedeeld === club.id ? "Gekopieerd ✓" : "Deel met je groep"}
-                  </button>
-                  {/* Bij een ledenclub is het boekingssysteem afgeschermd, dus
-                      wijst "Boek hier" naar de clubsite: daar staat hoe je als
-                      lid reserveert. */}
-                  {(() => {
-                    const isLedenClub = club.boekbaarZonderLidmaatschap === false;
-                    const url = isLedenClub ? club.websiteUrl ?? club.boekingsUrl : club.boekingsUrl;
-                    if (!url) return null;
-                    return (
-                      <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-court-700 underline">
-                        {isLedenClub ? "Naar de clubsite →" : "Boek hier →"}
-                      </a>
-                    );
-                  })()}
-                </div>
-              </div>
+      {gevolgdeClubs.length > 0 && (
+        <div className="mt-4">
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-court-700">
+            <BalIcon className="h-3.5 w-3.5" /> Gevolgde clubs
+          </h3>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{gevolgdeClubs.map(renderKaart)}</div>
+        </div>
+      )}
 
-              {/* Vrije tijden zelf tonen, niet alleen het aantal — PROJECTPLAN.md §3. */}
-              {club.meting && !club.meting.fout && (
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  {club.sloten.length > 0 ? (() => {
-                    const open = uitgeklapt.has(club.id);
-                    // Bij een voorkeurstijd eerst de matchende tijden tonen, dan de
-                    // rest erachteraan — anders kon de standaardweergave (eerste 5)
-                    // volledig uit niet-matchende tijden bestaan terwijl de
-                    // gezochte tijd pas achter "Toon nog N tijden" zat.
-                    const gesorteerd = voorkeurstijd
-                      ? [...club.sloten].sort((a, b) => {
-                          const aPast = binnenTijdvenster(a.tijd, voorkeurstijd, margeUren) ? 0 : 1;
-                          const bPast = binnenTijdvenster(b.tijd, voorkeurstijd, margeUren) ? 0 : 1;
-                          return aPast - bPast || a.tijd.localeCompare(b.tijd);
-                        })
-                      : club.sloten;
-                    const teTonen = open ? gesorteerd : gesorteerd.slice(0, MAX_TIJDEN_ZICHTBAAR);
-                    const verborgen = club.sloten.length - teTonen.length;
-                    // Losse knop-render, gedeeld tussen de "past bij je voorkeur"-
-                    // en de "overige tijden"-groep hieronder.
-                    const slotKnop = (slot: Slot, past: boolean) => (
-                      <li key={slot.tijd}>
-                        <button
-                          type="button"
-                          onClick={() => kiesTijd(club, slot.tijd)}
-                          title={`Boek ${slot.tijd} bij ${club.naam}${slot.prijs ? ` (${slot.prijs})` : ""}`}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition hover:ring-2 hover:ring-court-400 ${
-                            past ? "bg-court-100 text-court-900" : "bg-slate-50 text-slate-400"
-                          }`}
-                        >
-                          {slot.tijd}
-                          {slot.prijs && <span className="ml-1 opacity-70">· {slot.prijs}</span>}
-                        </button>
-                      </li>
-                    );
+      {gevolgdeClubs.length > 0 && overigeClubs.length > 0 && (
+        <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Overige clubs</h3>
+      )}
 
-                    // Met een voorkeurstijd: twee losse, gelabelde groepen i.p.v.
-                    // één lijst met alleen een kleurverschil — Xander (2 aug
-                    // 2026): "een scheiding tussen voorkeurstijd groen en
-                    // daaronder overige beschikbare tijden grijs". De
-                    // matchende tijden staan altijd volledig (meestal maar een
-                    // paar); "Toon nog N" geldt alleen voor de overige groep.
-                    if (voorkeurstijd) {
-                      const passend = gesorteerd.filter((s) => binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
-                      const overig = gesorteerd.filter((s) => !binnenTijdvenster(s.tijd, voorkeurstijd, margeUren));
-                      const overigTeTonen = open ? overig : overig.slice(0, MAX_TIJDEN_ZICHTBAAR);
-                      const overigVerborgen = overig.length - overigTeTonen.length;
-                      return (
-                        <>
-                          <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <BalIcon className="h-3.5 w-3.5" />
-                            {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
-                          </p>
-                          {passend.length > 0 && (
-                            <>
-                              <p className="mt-2 text-xs font-medium text-court-700">
-                                Past bij {voorkeurstijd} (± {margeUren} uur)
-                              </p>
-                              <ul className="mt-1 flex flex-wrap gap-1.5">{passend.map((s) => slotKnop(s, true))}</ul>
-                            </>
-                          )}
-                          {overig.length > 0 && (
-                            <>
-                              <p className="mt-3 text-xs font-medium text-slate-500">Overige tijden</p>
-                              <ul className="mt-1 flex flex-wrap gap-1.5">{overigTeTonen.map((s) => slotKnop(s, false))}</ul>
-                              {overigVerborgen > 0 && (
-                                <button type="button" onClick={() => wisselUitklap(club.id)}
-                                  className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
-                                  + Toon nog {overigVerborgen} {overigVerborgen === 1 ? "tijd" : "tijden"}
-                                </button>
-                              )}
-                              {open && overig.length > MAX_TIJDEN_ZICHTBAAR && (
-                                <button type="button" onClick={() => wisselUitklap(club.id)}
-                                  className="mt-1.5 text-xs font-medium text-court-700 hover:underline">
-                                  Toon minder
-                                </button>
-                              )}
-                            </>
-                          )}
-                          <p className="mt-2 text-xs text-slate-400">Klik op een tijd om naar de boekingspagina te gaan.</p>
-                        </>
-                      );
-                    }
+      <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{overigeClubs.map(renderKaart)}</div>
 
-                    // Geen voorkeurstijd: gewoon één platte lijst.
-                    return (
-                      <>
-                        <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <BalIcon className="h-3.5 w-3.5" />
-                          {club.sloten.length} vrije {club.sloten.length === 1 ? "tijd" : "tijden"}
-                        </p>
-                        <ul className="mt-2 flex flex-wrap gap-1.5">{teTonen.map((s) => slotKnop(s, true))}</ul>
-                        {verborgen > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => wisselUitklap(club.id)}
-                            className="mt-1.5 text-xs font-medium text-court-700 hover:underline"
-                          >
-                            + Toon nog {verborgen} {verborgen === 1 ? "tijd" : "tijden"}
-                          </button>
-                        )}
-                        {open && club.sloten.length > MAX_TIJDEN_ZICHTBAAR && (
-                          <button
-                            type="button"
-                            onClick={() => wisselUitklap(club.id)}
-                            className="mt-1.5 text-xs font-medium text-court-700 hover:underline"
-                          >
-                            Toon minder
-                          </button>
-                        )}
-                        <p className="mt-1 text-xs text-slate-400">Klik op een tijd om naar de boekingspagina te gaan.</p>
-                      </>
-                    );
-                  })() : (
-                    <p className="text-xs text-slate-500">Geen vrije tijden op deze dag.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {zichtbareClubs.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
-            <p className="text-sm text-slate-600">
-              Geen clubs die passen bij je filters{zoekgebied ? ` binnen ${straalKm} km van ${zoekgebied.plaatsnaam}` : ""}.
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Zet de straal ruimer, kies een andere dag, of wis de voorkeurstijd. We kennen nu {CLUBS.length} clubs.
-            </p>
-          </div>
-        )}
-      </div>
+      {zichtbareClubs.length === 0 && (
+        <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+          <p className="text-sm text-slate-600">
+            Geen clubs die passen bij je filters{zoekgebied ? ` binnen ${straalKm} km van ${zoekgebied.plaatsnaam}` : ""}.
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Zet de straal ruimer, kies een andere dag, of wis de voorkeurstijd. We kennen nu {CLUBS.length} clubs.
+          </p>
+        </div>
+      )}
 
       <p className="mt-8 text-xs text-slate-400">
         Beschikbaarheid komt live van Playtomic, KNLTB Meet &amp; Play en Foys/Peakz. Clubs waar je alleen met een

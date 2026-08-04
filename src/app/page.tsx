@@ -59,37 +59,25 @@ export default function Home() {
             <HeroInlogKnop />
           </div>
         </div>
-      </div>
 
-      {/* Voorheen een licht blok tussen de donkere hero en de donkere footer
-          (Xander, 4 aug 2026: "maak dat gedeelte ook gewoon net als de
-          pagina de donkere kleuren") — nu één doorlopende donkere sectie tot
-          aan de footer, met de steden in het geel (ball-400) zoals gevraagd. */}
-      <div className="baan-achtergrond bg-ink-900">
-        <div className="mx-auto max-w-3xl px-6 py-12">
-          <Link
-            href="/radar"
-            className="group block rounded-xl border border-ink-700 bg-ink-800 p-6 shadow-sm transition hover:border-ball-400/50 hover:shadow-md"
-          >
-            <h2 className="flex items-center gap-2 text-xl font-semibold text-white group-hover:text-ball-400">
-              Beschikbaarheid Radar
-              <span aria-hidden="true">→</span>
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">Volg je favoriete clubs en krijg een seintje zodra er een baan vrijkomt.</p>
-          </Link>
-
-          <div className="mt-8">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Padelbaan vrij in</h3>
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-              {STAD_SLUGS.map((slug) => (
-                <Link key={slug} href={`/padelbaan-vrij/${slug}`} className="text-sm font-medium text-ball-400 hover:underline">
-                  {haalStadData(slug).naam}
-                </Link>
-              ))}
-              <Link href="/padelbaan-vrij" className="text-sm font-medium text-slate-400 hover:text-white hover:underline">
-                Alle steden →
+        {/* Zelfde achtergrond-div als de hero hierboven (Xander, 4 aug 2026:
+            "maak dit 1 achtergrond foto") — twee losse .baan-achtergrond-
+            divs gaven allebei hun eigen gecentreerde uitsnede van dezelfde
+            foto, wat een zichtbare naad opleverde. Nu één doorlopende box,
+            dus één continue uitsnede. De "Beschikbaarheid Radar"-kaart die
+            hier stond is weg (Xander: dubbelop met de "Bekijk
+            beschikbaarheid →"-knop hierboven). */}
+        <div className="mx-auto max-w-3xl px-6 pb-16">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Padelbaan vrij in</h3>
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {STAD_SLUGS.map((slug) => (
+              <Link key={slug} href={`/padelbaan-vrij/${slug}`} className="text-sm font-medium text-ball-400 hover:underline">
+                {haalStadData(slug).naam}
               </Link>
-            </div>
+            ))}
+            <Link href="/padelbaan-vrij" className="text-sm font-medium text-slate-400 hover:text-white hover:underline">
+              Alle steden →
+            </Link>
           </div>
         </div>
       </div>

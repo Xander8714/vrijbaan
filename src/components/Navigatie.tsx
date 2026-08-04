@@ -51,11 +51,11 @@ export default function Navigatie() {
   }
 
   return (
-    // Zelfde foto-achtergrond als de hero's eronder (Xander, 4 aug 2026: "neem
-    // in de bovenste balk de achtergrond over van de beschikbaarheidsradar")
-    // — .baan-hero i.p.v. de vlakke bg-ink-900, zodat menu en hero visueel
-    // doorlopen als één band.
-    <header className="baan-hero sticky top-0 z-20">
+    // De foto-achtergrond hier stond even gelijk aan de hero eronder, maar
+    // dat verstoorde het menu te veel (Xander, 4 aug 2026: "maak de header
+    // weer gewoon zwart, die verspreidt de aandacht") — terug naar vlak
+    // bg-ink-900.
+    <header className="sticky top-0 z-20 bg-ink-900">
       <nav className="mx-auto flex max-w-4xl items-center justify-between px-6 py-3">
         <Link href="/" className="text-lg font-bold tracking-tight text-white">
           Vrije<span className="text-ball-400">Baan</span>

@@ -14,8 +14,13 @@ const SITEMAP_LINKS = [
 ];
 
 export default function Footer() {
+  // Geen mt-16 meer (Xander, 4 aug 2026): op de homepage liep die als een
+  // lichte streep tussen de nu-doorlopende donkere sectie en deze donkere
+  // footer — het body-canvas (baan-achtergrond-licht) schemerde er precies
+  // doorheen. Elke pagina heeft al eigen py-*/pb-* onderaan haar <main>,
+  // dus de footer staat nergens plakkerig tegenaan zonder deze marge.
   return (
-    <footer className="mt-16 border-t border-ink-800 bg-ink-900 text-slate-300">
+    <footer className="border-t border-ink-800 bg-ink-900 text-slate-300">
       <div className="mx-auto grid max-w-4xl gap-8 px-6 py-10 sm:grid-cols-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Sitemap</h2>
