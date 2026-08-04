@@ -69,11 +69,6 @@ export default function Home() {
           </h2>
           <p className="mt-2 text-sm text-slate-500">Volg je favoriete clubs en krijg een seintje zodra er een baan vrijkomt.</p>
         </Link>
-        <div className="mt-6">
-          <Link href="/help" className="text-sm font-medium text-court-700 hover:underline">
-            Hoe werkt het? →
-          </Link>
-        </div>
       </div>
     </main>
   );

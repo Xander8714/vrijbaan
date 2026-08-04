@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { STAD_SLUGS } from "@/lib/stadsPaginas";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.app";
 
@@ -22,5 +23,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // zie de toelichting bij TABBLADEN in Navigatie.tsx) — pagina blijft
     // gewoon bestaan, alleen niet actief gepromoot.
     // pagina("/club-aanmelden", 0.4, "monthly"),
+    // Statische stad-landingspagina's (4 aug 2026, SEO-review) — zie
+    // src/lib/stadsPaginas.ts voor de keuze van deze zes steden.
+    ...STAD_SLUGS.map((stad) => pagina(`/padelbaan-vrij/${stad}`, 0.7, "weekly")),
   ];
 }
