@@ -16,6 +16,10 @@ import { BalIcon } from "@/components/PadelIcons";
 // pagina onoverzichtelijk op mobiel.
 const MAX_TIJDEN_ZICHTBAAR = 5;
 
+// Voor de melding zolang er nog geen zoekgebied gekozen is (zie onder) —
+// zelfde rekenpatroon als TOTAAL_BANEN op de homepage.
+const TOTAAL_BANEN_LANDELIJK = CLUBS.reduce((som, club) => som + club.banen, 0);
+
 const GRATIS_LIMIET = 1;
 const OPSLAG_SLEUTEL = "vrijbaan-zoekgebied";
 const LID_SLEUTEL = "vrijbaan-lidmaatschappen";
@@ -312,12 +316,37 @@ export default function RadarPage() {
   }, [kandidaatClubs, zoekgebied, straalKm, gevolgd]);
 
   /**
-   * Beschikbaarheid halen we op voor precies de clubs die na het straal-filter
-   * overblijven, niet voor alle 111 gekoppelde clubs. Reden: Playtomic en
-   * Meet & Play kosten elk een Playwright-run van ~15-20 seconden per club, dus
-   * "alles ophalen" duurt ruim een uur. Boven MAX_ZICHTBAAR halen we niets op en
-   * vragen we de gebruiker zijn selectie te verkleinen — beter een duidelijke
-   * vraag dan een verzoek dat minuten hangt.
+   * Zitten er meer dan MAX_ZICHTBAAR clubs in de gekozen straal, dan versmallen
+   * we automatisch naar de dichtstbijzijnde MAX_ZICHTBAAR i.p.v. de gebruiker
+   * te vragen zelf de straal te verlagen — Xander (4 aug 2026): "dat je het
+   * zoekgebied net zo klein instelt als max 20 clubs in de omgeving, als er
+   * dan minder zijn toon je wel alles". Gevolgde clubs gaan altijd mee (zie
+   * de toelichting bij clubsInStraal hierboven), ook als dat betekent dat er
+   * voor de "overige" clubs minder dan MAX_ZICHTBAAR ruimte overblijft.
+   * clubsInStraal ligt al gesorteerd op afstand, dus de eerste N niet-
+   * gevolgde clubs zijn meteen de dichtstbijzijnde.
+   */
+  const teVeelInStraal = clubsInStraal.length > MAX_ZICHTBAAR;
+  const clubsOmTeTonen = useMemo(() => {
+    if (!teVeelInStraal) return clubsInStraal;
+    const gevolgdeInStraal = clubsInStraal.filter((c) => gevolgd.has(c.id));
+    const overigeInStraal = clubsInStraal.filter((c) => !gevolgd.has(c.id));
+    return [...gevolgdeInStraal, ...overigeInStraal].slice(0, MAX_ZICHTBAAR);
+  }, [clubsInStraal, teVeelInStraal, gevolgd]);
+  // Straal die daadwerkelijk gebruikt is na het versmallen — alleen over de
+  // niet-gevolgde clubs, want gevolgde clubs mogen buiten dat bereik liggen
+  // zonder de gemelde straal op te rekken.
+  const effectieveStraalKm = teVeelInStraal
+    ? Math.round(Math.max(0, ...clubsOmTeTonen.filter((c) => !gevolgd.has(c.id)).map((c) => c.afstandKm ?? 0)))
+    : straalKm;
+
+  /**
+   * Beschikbaarheid halen we op voor precies clubsOmTeTonen, niet voor alle
+   * 111 gekoppelde clubs. Reden: Playtomic en Meet & Play kosten elk een
+   * Playwright-run van ~15-20 seconden per club, dus "alles ophalen" duurt
+   * ruim een uur. clubsOmTeTonen is al begrensd tot MAX_ZICHTBAAR (zie
+   * hierboven), dus hier hoeft niet nogmaals op een bovengrens gecheckt te
+   * worden.
    *
    * BEWUST NIET automatisch bij laden of bij elke filterwijziging — Xander
    * (2 aug 2026): "die 'bezig met zoeken' zodra de site geopend wordt werkt
@@ -325,7 +354,7 @@ export default function RadarPage() {
    * drukken". `handmatigeZoekopdracht` is daarom de ENIGE trigger: die staat
    * op 0 tot de eerste klik op "Zoek nu", dus zowel het laden van de pagina
    * als het wisselen van dag/straal/locatie doet op zichzelf niets meer —
-   * pas een nieuwe klik haalt verse data op. clubsInStraal/gekozenDatum
+   * pas een nieuwe klik haalt verse data op. clubsOmTeTonen/gekozenDatum
    * staan bewust NIET in de dependency-array (ze worden wél gelezen, via de
    * closure van het moment van de klik): ze mogen het effect niet opnieuw
    * laten afgaan, alleen de knop mag dat.
@@ -333,8 +362,8 @@ export default function RadarPage() {
   useEffect(() => {
     if (handmatigeZoekopdracht === 0) return; // nog niet op "Zoek nu" gedrukt
 
-    const ids = clubsInStraal.map((c) => c.id);
-    if (ids.length === 0 || ids.length > MAX_ZICHTBAAR) return;
+    const ids = clubsOmTeTonen.map((c) => c.id);
+    if (ids.length === 0) return;
 
     let afgebroken = false;
 
@@ -477,7 +506,7 @@ export default function RadarPage() {
   };
 
   const zichtbareClubs = useMemo(() => {
-    return clubsInStraal
+    return clubsOmTeTonen
       .map((club) => {
         const meting = metingen.get(`${club.id}|${gekozenDatum}`);
         const sloten = meting?.sloten ?? [];
@@ -495,12 +524,12 @@ export default function RadarPage() {
       // aantallen kloppen niet") — zonder deze voorwaarde verdween elke club
       // zodra ZIJN meting binnenkwam en niets paste, terwijl de rest van de
       // batch nog liep. Dat liet de lijst live krimpen tijdens het laden en
-      // het "ophalen bij N clubs"-bericht (dat clubsInStraal.length gebruikt,
+      // het "ophalen bij N clubs"-bericht (dat clubsOmTeTonen.length gebruikt,
       // niet dit gefilterde aantal) niet meer overeenkomen met de zichtbare
       // koptekst. Nu blijft de lijst tijdens het laden stabiel en wordt pas
       // in één keer gefilterd zodra de hele batch klaar is.
       .filter((club) => metingBezig || !voorkeurstijd || !club.meting || club.meting.fout || club.passendeTijden.length > 0);
-  }, [clubsInStraal, metingen, gekozenDatum, voorkeurstijd, margeUren, metingBezig]);
+  }, [clubsOmTeTonen, metingen, gekozenDatum, voorkeurstijd, margeUren, metingBezig]);
 
   const metPassendeTijd = zichtbareClubs.filter((c) => c.passendeTijden.length > 0).length;
 
@@ -741,6 +770,12 @@ export default function RadarPage() {
           <input id="straal" type="range" min="1" max="25" step="1" value={straalKm}
             onChange={(e) => setStraalKm(Number(e.target.value))} className="mt-2 w-full" />
           <div className="flex justify-between text-xs text-slate-400"><span>1 km</span><span>25 km</span></div>
+          {/* Xander (4 aug 2026): "geef ergens een tip hoe minder clubs hoe
+              sneller de banen geladen worden" — hier, direct bij de knop die
+              dat aantal bepaalt, is nuttiger dan pas bij de resultaten. */}
+          <p className="mt-2 text-xs text-slate-400">
+            Tip: hoe kleiner de straal, hoe minder clubs we hoeven te bevragen — en hoe sneller je de vrije tijden ziet.
+          </p>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -750,11 +785,6 @@ export default function RadarPage() {
           </button>
           {bewaarStatus && <span className="text-xs text-slate-500">{bewaarStatus}</span>}
         </div>
-
-        {!zoekgebied && (
-          <p className="mt-3 text-xs text-amber-700">Nog geen locatie gekozen — je ziet nu alle clubs die we kennen.</p>
-        )}
-
       </section>
 
       {/* Wanneer wil je spelen? */}
@@ -910,67 +940,89 @@ export default function RadarPage() {
         </p>
       )}
 
-      <h2 className="mt-8 font-semibold text-slate-900">
-        {zichtbareClubs.length} {zichtbareClubs.length === 1 ? "club" : "clubs"}
-        {zoekgebied ? ` binnen ${straalKm} km` : ""}
-      </h2>
+      {zoekgebied ? (
+        <>
+          <h2 className="mt-8 font-semibold text-slate-900">
+            {zichtbareClubs.length} {zichtbareClubs.length === 1 ? "club" : "clubs"} binnen {straalKm} km
+          </h2>
 
-      {/* Boven de grens halen we bewust niets op: dat zou minuten duren. */}
-      {clubsInStraal.length > MAX_ZICHTBAAR && (
-        <div className="mt-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <strong>{clubsInStraal.length} clubs is te veel om live op te vragen.</strong> We halen beschikbaarheid
-          op bij de boekingssystemen zelf, en dat kost per club een paar seconden. Maak je selectie kleiner
-          (maximaal {MAX_ZICHTBAAR}) — zet bijvoorbeeld de straal lager.
-        </div>
-      )}
+          {/* Automatisch versmald naar de dichtstbijzijnde MAX_ZICHTBAAR i.p.v.
+              een vraag om zelf de straal te verlagen — zie de toelichting bij
+              clubsOmTeTonen hierboven. */}
+          {teVeelInStraal && (
+            <div className="mt-3 rounded-md bg-court-50 px-4 py-3 text-sm text-court-900">
+              Er zijn {clubsInStraal.length} clubs binnen {straalKm} km — we tonen de {MAX_ZICHTBAAR} dichtstbijzijnde
+              (tot ongeveer {effectieveStraalKm} km). Zet de straal lager voor een preciezere selectie.
+            </div>
+          )}
 
-      {/* Zoeken gebeurt niet meer automatisch (zie de toelichting bij het
-          ophaal-effect) — zonder deze hint is niet duidelijk waarom er nog
-          geen tijden staan. */}
-      {clubsInStraal.length <= MAX_ZICHTBAAR && handmatigeZoekopdracht === 0 && (
-        <p className="mt-3 rounded-md bg-court-50 px-4 py-2 text-sm text-court-800">
-          Klik op &quot;🔍 Zoek nu&quot; hierboven om de actuele beschikbaarheid op te halen.
-        </p>
-      )}
+          {/* Zoeken gebeurt niet meer automatisch (zie de toelichting bij het
+              ophaal-effect) — zonder deze hint is niet duidelijk waarom er nog
+              geen tijden staan. */}
+          {handmatigeZoekopdracht === 0 && (
+            <p className="mt-3 rounded-md bg-court-50 px-4 py-2 text-sm text-court-800">
+              Klik op &quot;🔍 Zoek nu&quot; hierboven om de actuele beschikbaarheid op te halen.
+            </p>
+          )}
 
-      {clubsInStraal.length <= MAX_ZICHTBAAR && handmatigeZoekopdracht > 0 && metingBezig && (
-        <p className="mt-3 rounded-md bg-slate-100 px-4 py-2 text-sm text-slate-600">
-          Beschikbaarheid ophalen bij {clubsInStraal.length} clubs… dit kan tot een minuut duren, we vragen het
-          rechtstreeks bij de boekingssystemen op.
-        </p>
-      )}
+          {handmatigeZoekopdracht > 0 && metingBezig && (
+            <p className="mt-3 rounded-md bg-slate-100 px-4 py-2 text-sm text-slate-600">
+              Beschikbaarheid ophalen bij {clubsOmTeTonen.length} clubs… dit kan tot een minuut duren, we vragen het
+              rechtstreeks bij de boekingssystemen op.
+            </p>
+          )}
 
-      {metingFout && <p className="mt-3 rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{metingFout}</p>}
+          {metingFout && <p className="mt-3 rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{metingFout}</p>}
 
-      {opgehaaldOp && !metingBezig && clubsInStraal.length <= MAX_ZICHTBAAR && (
-        <p className="mt-2 text-xs text-slate-400">
-          Live opgehaald om{" "}
-          {new Date(opgehaaldOp).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
-        </p>
-      )}
+          {opgehaaldOp && !metingBezig && (
+            <p className="mt-2 text-xs text-slate-400">
+              Live opgehaald om{" "}
+              {new Date(opgehaaldOp).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          )}
 
-      {gevolgdeClubs.length > 0 && (
-        <div className="mt-4">
-          <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-court-700">
-            <BalIcon className="h-3.5 w-3.5" /> Gevolgde clubs
-          </h3>
-          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{gevolgdeClubs.map(renderKaart)}</div>
-        </div>
-      )}
+          {gevolgdeClubs.length > 0 && (
+            <div className="mt-4">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-court-700">
+                <BalIcon className="h-3.5 w-3.5" /> Gevolgde clubs
+              </h3>
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{gevolgdeClubs.map(renderKaart)}</div>
+            </div>
+          )}
 
-      {gevolgdeClubs.length > 0 && overigeClubs.length > 0 && (
-        <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Overige clubs</h3>
-      )}
+          {gevolgdeClubs.length > 0 && overigeClubs.length > 0 && (
+            <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Overige clubs</h3>
+          )}
 
-      <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{overigeClubs.map(renderKaart)}</div>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">{overigeClubs.map(renderKaart)}</div>
 
-      {zichtbareClubs.length === 0 && (
-        <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
-          <p className="text-sm text-slate-600">
-            Geen clubs die passen bij je filters{zoekgebied ? ` binnen ${straalKm} km van ${zoekgebied.plaatsnaam}` : ""}.
+          {zichtbareClubs.length === 0 && (
+            <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+              <p className="text-sm text-slate-600">
+                Geen clubs die passen bij je filters binnen {straalKm} km van {zoekgebied.plaatsnaam}.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Zet de straal ruimer, kies een andere dag, of wis de voorkeurstijd. We kennen nu {CLUBS.length} clubs.
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        // Zonder zoekgebied zijn "alle 514 clubs" kandidaat (clubsInStraal
+        // filtert dan niets weg) — die allemaal als kaart renderen terwijl er
+        // toch nooit beschikbaarheid voor opgehaald wordt (MAX_ZICHTBAAR
+        // houdt dat al tegen) is alleen maar een trage, lege lijst. Xander
+        // (4 aug 2026): "hoef je niet 514 clubs op te halen als je
+        // uitgelogd bent... toon zoiets van een melding" — dus i.p.v. de
+        // volle lijst gewoon het landelijke totaal, met een duwtje richting
+        // de woonplaats hierboven.
+        <div className="mt-8 rounded-lg border border-dashed border-court-300 bg-court-50 p-6 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            {TOTAAL_BANEN_LANDELIJK} padelbanen beschikbaar bij {CLUBS.length} clubs door heel Nederland.
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Zet de straal ruimer, kies een andere dag, of wis de voorkeurstijd. We kennen nu {CLUBS.length} clubs.
+            Kies hierboven je woonplaats om je zoekgebied te verkleinen — dan zien we precies wat er bij jou in de
+            buurt vrij is.
           </p>
         </div>
       )}
