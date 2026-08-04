@@ -11,7 +11,8 @@ export default function PricingPage() {
       <h1 className="mt-4 text-4xl font-bold text-slate-900">Prijzen</h1>
       <p className="mt-2 text-slate-600">
         VrijeBaan is <span className="font-semibold text-court-700">dit jaar (2026) volledig gratis</span> — we
-        testen nog met een kleine groep. Vanaf 2027 kan een betaald plan bijkomen zodra er genoeg gebruikers zijn.
+        testen nog met een kleine groep.{" "}
+        <span className="font-semibold text-slate-900">Vanaf begin 2027 wordt dit een betaald plan.</span>
       </p>
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <div className="bal-stippen rounded-xl border border-slate-200 bg-white p-6">
@@ -32,12 +33,11 @@ export default function PricingPage() {
             of €15/jaar <span className="text-ball-400">— bespaar €9 (dat is €1,25/mnd)</span>
           </p>
           <ul className="mt-4 space-y-2 text-sm text-slate-300">
-            <li>Alleen als VrijeBaan meer dan 100 accounts heeft</li>
             <li>Bestaande gratis gebruikers krijgen ruim vooraf bericht</li>
           </ul>
           <button
             disabled
-            title="Nog niet actief — vanaf 2027, alleen bij voldoende gebruikers"
+            title="Nog niet actief — vanaf 2027"
             className="mt-6 w-full cursor-not-allowed rounded-md bg-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-400"
           >
             Nog niet beschikbaar
