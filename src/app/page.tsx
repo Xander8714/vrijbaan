@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { RacketIcon, BalIcon } from "@/components/PadelIcons";
 import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
+import { STAD_SLUGS, haalStadData } from "@/lib/stadsPaginas";
+import HeroInlogKnop from "@/components/HeroInlogKnop";
 
 export const metadata: Metadata = {
   title: "Vind een vrije padelbaan in de buurt",
@@ -54,21 +56,42 @@ export default function Home() {
             >
               Bekijk prijzen
             </Link>
+            <HeroInlogKnop />
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        <Link
-          href="/radar"
-          className="group block rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-court-300 hover:shadow-md"
-        >
-          <h2 className="flex items-center gap-2 text-xl font-semibold text-slate-900 group-hover:text-court-700">
-            Beschikbaarheid Radar
-            <span aria-hidden="true">→</span>
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">Volg je favoriete clubs en krijg een seintje zodra er een baan vrijkomt.</p>
-        </Link>
+      {/* Voorheen een licht blok tussen de donkere hero en de donkere footer
+          (Xander, 4 aug 2026: "maak dat gedeelte ook gewoon net als de
+          pagina de donkere kleuren") — nu één doorlopende donkere sectie tot
+          aan de footer, met de steden in het geel (ball-400) zoals gevraagd. */}
+      <div className="baan-achtergrond bg-ink-900">
+        <div className="mx-auto max-w-3xl px-6 py-12">
+          <Link
+            href="/radar"
+            className="group block rounded-xl border border-ink-700 bg-ink-800 p-6 shadow-sm transition hover:border-ball-400/50 hover:shadow-md"
+          >
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-white group-hover:text-ball-400">
+              Beschikbaarheid Radar
+              <span aria-hidden="true">→</span>
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">Volg je favoriete clubs en krijg een seintje zodra er een baan vrijkomt.</p>
+          </Link>
+
+          <div className="mt-8">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Padelbaan vrij in</h3>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+              {STAD_SLUGS.map((slug) => (
+                <Link key={slug} href={`/padelbaan-vrij/${slug}`} className="text-sm font-medium text-ball-400 hover:underline">
+                  {haalStadData(slug).naam}
+                </Link>
+              ))}
+              <Link href="/padelbaan-vrij" className="text-sm font-medium text-slate-400 hover:text-white hover:underline">
+                Alle steden →
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );

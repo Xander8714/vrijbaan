@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { STAD_SLUGS, haalStadData, clubsOpAfstand, type StadSlug } from "@/lib/stadsPaginas";
+import { STAD_SLUGS, haalStadData, clubsOpAfstand, boekingssystemenTekst, type StadSlug } from "@/lib/stadsPaginas";
 
 // Straal voor de Radar-CTA: ruim genoeg om ook net-buiten-de-stad-clubs mee
 // te nemen (bv. Haarlemmerstroom net buiten Haarlem-centrum), binnen de
@@ -25,7 +25,7 @@ export async function generateMetadata({
   if (!isStadSlug(stad)) return {};
   const info = haalStadData(stad);
   const title = `Padelbaan vrij in ${info.naam}`;
-  const description = `${info.totaalBanen} padelbanen bij ${info.clubs.length} clubs in ${info.naam}, verdeeld over ${info.systemen.length} boekingssystemen. Zie live welke plek nu vrij is.`;
+  const description = `${info.totaalBanen} padelbanen bij ${info.clubs.length} clubs in ${info.naam}, verdeeld over ${boekingssystemenTekst(info.systemen.length)}. Zie live welke plek nu vrij is.`;
   return { title, description, alternates: { canonical: `/padelbaan-vrij/${stad}` } };
 }
 

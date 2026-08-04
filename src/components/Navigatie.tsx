@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useGebruiker } from "@/lib/useGebruiker";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 // Vaste tabbladen bovenaan elke pagina.
 //
@@ -9,9 +11,12 @@ import { usePathname } from "next/navigation";
 // meer bij de app"). De route zelf (src/app/opstelling) is verwijderd; het
 // rekenmodel (src/lib/lineup.ts + tests) blijft staan — dat wordt al herbruikt
 // in de mobiele app (zie PROJECTPLAN.md §9.1), dus daar is niets mis mee.
+//
+// "Account" staat er bewust NIET (meer) statisch in — die tab wisselt tussen
+// "Inloggen"/"Account" afhankelijk van de inlogstatus, zie hieronder.
 const TABBLADEN = [
   { href: "/radar", label: "Radar" },
-  { href: "/account", label: "Account" },
+  { href: "/padelbaan-vrij", label: "Steden" },
   { href: "/pricing", label: "Prijzen" },
   { href: "/help", label: "Help" },
   // "Club aanmelden" tijdelijk uit de navigatie (3 aug 2026, Xander: "zet de
@@ -23,7 +28,16 @@ const TABBLADEN = [
 
 export default function Navigatie() {
   const pad = usePathname();
+  const router = useRouter();
+  const gebruiker = useGebruiker();
   const [open, setOpen] = useState(false);
+
+  const uitloggen = async () => {
+    setOpen(false);
+    await supabaseBrowser().auth.signOut();
+    router.push("/");
+    router.refresh();
+  };
 
   // Menu dicht bij het wisselen van pagina — anders blijft een opengeklapt
   // hamburgermenu staan na het kiezen van een tabblad. Dit is bewust GEEN
@@ -50,6 +64,24 @@ export default function Navigatie() {
           {TABBLADEN.map((tab) => (
             <Tabblad key={tab.href} href={tab.href} label={tab.label} actief={isActief(pad, tab.href)} />
           ))}
+          {gebruiker !== undefined && (
+            <>
+              <Tabblad
+                href={gebruiker ? "/account" : "/login"}
+                label={gebruiker ? "Account" : "Inloggen"}
+                actief={isActief(pad, "/account") || isActief(pad, "/login")}
+              />
+              {gebruiker && (
+                <button
+                  type="button"
+                  onClick={uitloggen}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-ink-700 hover:text-white"
+                >
+                  Uitloggen
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         <button
@@ -78,6 +110,25 @@ export default function Navigatie() {
             {TABBLADEN.map((tab) => (
               <Tabblad key={tab.href} href={tab.href} label={tab.label} actief={isActief(pad, tab.href)} volledigeBreedte />
             ))}
+            {gebruiker !== undefined && (
+              <>
+                <Tabblad
+                  href={gebruiker ? "/account" : "/login"}
+                  label={gebruiker ? "Account" : "Inloggen"}
+                  actief={isActief(pad, "/account") || isActief(pad, "/login")}
+                  volledigeBreedte
+                />
+                {gebruiker && (
+                  <button
+                    type="button"
+                    onClick={uitloggen}
+                    className="rounded-md px-3 py-2 text-left text-sm font-medium text-slate-300 transition hover:bg-ink-700 hover:text-white"
+                  >
+                    Uitloggen
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

@@ -25,6 +25,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // pagina("/club-aanmelden", 0.4, "monthly"),
     // Statische stad-landingspagina's (4 aug 2026, SEO-review) — zie
     // src/lib/stadsPaginas.ts voor de keuze van deze zes steden.
+    pagina("/padelbaan-vrij", 0.6, "monthly"),
     ...STAD_SLUGS.map((stad) => pagina(`/padelbaan-vrij/${stad}`, 0.7, "weekly")),
   ];
 }

@@ -89,6 +89,11 @@ export function haalStadData(slug: StadSlug): StadData {
   return { slug, naam: STAD_INFO[slug].naam, intro: STAD_INFO[slug].intro, clubs, totaalBanen, systemen, centrum };
 }
 
+/** "1 boekingssysteem" / "3 boekingssystemen" — voorkomt fout enkelvoud bij steden met precies 1 systeem (bv. Groningen). */
+export function boekingssystemenTekst(aantal: number): string {
+  return `${aantal} ${aantal === 1 ? "boekingssysteem" : "boekingssystemen"}`;
+}
+
 /** Clubs gesorteerd op afstand tot het stadscentrum — voor een nette weergave. */
 export function clubsOpAfstand(stad: StadData): (Club & { afstandKm: number })[] {
   return stad.clubs
