@@ -2,12 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { STAD_SLUGS, haalStadData, boekingssystemenTekst } from "@/lib/stadsPaginas";
 
-export const metadata: Metadata = {
-  title: "Padelbaan vrij per stad",
-  description:
-    "Kies je stad en zie live hoeveel padelbanen er vrij zijn — Amsterdam, Haarlem, Groningen, Utrecht, Apeldoorn en Eindhoven.",
-  alternates: { canonical: "/padelbaan-vrij" },
-};
+// Stedennamen in de description niet meer hardcoded — die liep al eens uit
+// de pas met de echte lijst (nog "Apeldoorn en Eindhoven" toen die er allang
+// uit waren, 4 aug 2026). Nu afgeleid uit STAD_SLUGS zoals de rest van deze
+// pagina.
+export async function generateMetadata(): Promise<Metadata> {
+  const namen = STAD_SLUGS.map((slug) => haalStadData(slug).naam);
+  const namenTekst = namen.length > 1 ? `${namen.slice(0, -1).join(", ")} en ${namen.at(-1)}` : namen[0];
+  return {
+    title: "Padelbaan vrij per stad",
+    description: `Kies je stad en zie live hoeveel padelbanen er vrij zijn — ${namenTekst}.`,
+    alternates: { canonical: "/padelbaan-vrij" },
+  };
+}
 
 export default function StedenOverzicht() {
   const steden = STAD_SLUGS.map((slug) => haalStadData(slug));

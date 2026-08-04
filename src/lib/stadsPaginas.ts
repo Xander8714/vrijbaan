@@ -6,10 +6,12 @@
  * zijn). Bewust een kleine, met de hand gekozen lijst i.p.v. alle 370
  * plaatsnamen uit CLUBS — alleen steden waar VrijeBaan echt iets toevoegt.
  *
- * Volgorde/keuze (4 aug 2026, op basis van de eigen clubdata, niet een
- * geschatte lijst): Amsterdam, Haarlem, Groningen, Utrecht, Apeldoorn en
- * Eindhoven — de zes plaatsen met de meeste banen én meerdere
- * boekingssystemen tegelijk.
+ * Volgorde/keuze (bijgewerkt 4 aug 2026, Xander): Apeldoorn en Eindhoven
+ * eruit — "daar ken ik toch geen testers", en het GTM-plan is bewust warm/
+ * lokaal (vrienden/familie), niet landelijke SEO naar vreemdelingen in
+ * steden zonder eigen netwerk. Den Haag en Rijswijk erbij: "daar zit een
+ * grote groep vrienden [en familie]". Resultaat: Amsterdam, Haarlem,
+ * Groningen, Utrecht, Den Haag, Rijswijk.
  *
  * Cijfers worden hier NIET hardcoded maar bij elke build herberekend uit
  * CLUBS_INCLUSIEF_LEDENCLUBS — zo lopen ze nooit uit de pas met de
@@ -19,16 +21,22 @@ import { CLUBS_INCLUSIEF_LEDENCLUBS } from "./clubs";
 import type { Club } from "./types";
 import { afgerondeAfstand } from "./geo";
 
-export type StadSlug = "amsterdam" | "haarlem" | "groningen" | "utrecht" | "apeldoorn" | "eindhoven";
+export type StadSlug = "amsterdam" | "haarlem" | "groningen" | "utrecht" | "denhaag" | "rijswijk";
 
-/** slug -> exacte `plaats`-waarde(n) uit clubs.ts. Meestal 1-op-1. */
+/**
+ * slug -> exacte `plaats`-waarde(n) uit clubs.ts. Meestal 1-op-1, maar Den
+ * Haag staat in de clubdata onder TWEE verschillende plaatsnamen: de Foys-
+ * vestiging (Peakz Benoordenhout) heeft "Den Haag", de drie Playtomic-clubs
+ * hebben "'s-Gravenhage" (zo geeft PDOK die geocodeert) — allebei dezelfde
+ * stad, dus allebei meenemen, anders mist de pagina 3 van de 4 clubs.
+ */
 const STAD_PLAATSNAMEN: Record<StadSlug, string[]> = {
   amsterdam: ["Amsterdam"],
   haarlem: ["Haarlem"],
   groningen: ["Groningen"],
   utrecht: ["Utrecht"],
-  apeldoorn: ["Apeldoorn"],
-  eindhoven: ["Eindhoven"],
+  denhaag: ["Den Haag", "'s-Gravenhage"],
+  rijswijk: ["Rijswijk"],
 };
 
 /** Weergavenaam + korte, met de hand geschreven intro per stad — geen sjabloontekst. */
@@ -53,15 +61,15 @@ const STAD_INFO: Record<StadSlug, { naam: string; intro: string }> = {
     intro:
       "In Utrecht zijn de twee grote Peakz-locaties (Vechtsebanen en Zeehaenkade) samen goed voor 28 banen. Een centraal gelegen stad met veel forensen en flexibele speeltijden — vandaar dat losse boekingen hier vaak voorkomen.",
   },
-  apeldoorn: {
-    naam: "Apeldoorn",
+  denhaag: {
+    naam: "Den Haag",
     intro:
-      "Apeldoorn combineert twee Peakz-vestigingen met Apeldoorn Padel via Playtomic — drie verschillende systemen in één stad. Wie hier op zoek is naar een vrije baan moet dus eigenlijk drie apps tegelijk in de gaten houden, of gewoon één keer VrijeBaan koppelen.",
+      "Den Haag combineert één Peakz-vestiging (Benoordenhout) met drie Playtomic-clubs verspreid over de stad — Nieuw Marlot, Sportcentrum Mariahoeve en Padelcentrum Leeuwenbergh. Vier clubs, twee systemen: zonder VrijeBaan moet je zelf tussen Foys en Playtomic heen en weer schakelen om te zien wat er vrij is.",
   },
-  eindhoven: {
-    naam: "Eindhoven",
+  rijswijk: {
+    naam: "Rijswijk",
     intro:
-      "Eindhoven heeft drie Peakz-locaties (Beursgebouw, High Tech Campus en Vijfkamplaan) die samen zo'n twintig banen aanbieden, allemaal per keer te boeken zonder lidmaatschap.",
+      "Rijswijk heeft twee Playtomic-clubs vlak bij elkaar: HELLO Padel op Estate en Plaza Padel Rijswijk, samen 14 banen. Klein genoeg om in één oogopslag te overzien, maar groot genoeg dat het verschil maakt of je precies weet welke van de twee nu een vrij gaatje heeft.",
   },
 };
 
