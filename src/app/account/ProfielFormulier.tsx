@@ -320,7 +320,7 @@ export default function ProfielFormulier({
           </label>
           <input
             id="veld-straal"
-            type="range" min="1" max="100" step="1"
+            type="range" min="1" max="10" step="1"
             value={profiel.zoekstraalKm}
             onChange={(e) => zet("zoekstraalKm", Number(e.target.value))}
             className="mt-2 w-full"

@@ -498,15 +498,27 @@ export default function RadarPage() {
   const metPassendeTijd = zichtbareClubs.filter((c) => c.passendeTijden.length > 0).length;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <div className="baan-hero -mx-6 rounded-b-2xl px-6 py-10 sm:px-8">
-        <h1 className="text-3xl font-bold text-white">Beschikbaarheid Radar</h1>
-        <p className="mt-2 text-slate-300">
-          Kies waar je woont, stel je straal in en kijk tot een week vooruit. Volg een club en krijg een melding
-          zodra er een baan vrijkomt.
-        </p>
+    <>
+      {/* Buiten <main> als volle-breedte sibling (zelfde patroon als de
+          homepage-hero in src/app/page.tsx) — Xander (4 aug 2026): "hele
+          breedte voor de banner ... niet 75%". <main> hieronder heeft zelf
+          max-w-3xl, dus een kind daarvan kan nooit breder dan dat worden;
+          dit blok zit er expres vóór, op main-niveau, zodat het de volle
+          paginabreedte pakt. Geen pt-* op <main>: dat liet een lichte streep
+          zien tussen de donkere nav en dit blok (screenshot) — nu loopt de
+          donkere achtergrond door vanaf het menu, met de afgeronde hoeken
+          alleen onderaan (rounded-b-2xl). */}
+      <div className="baan-hero rounded-b-2xl py-10">
+        <div className="mx-auto max-w-3xl px-6 sm:px-8">
+          <h1 className="text-3xl font-bold text-white">Beschikbaarheid Radar</h1>
+          <p className="mt-2 text-slate-300">
+            Kies waar je woont, stel je straal in en kijk tot een week vooruit. Volg een club en krijg een melding
+            zodra er een baan vrijkomt.
+          </p>
+        </div>
       </div>
 
+      <main className="mx-auto max-w-3xl px-6 pb-12">
       <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-slate-900">Mijn zoekgebied</h2>
         <div className="mt-3">
@@ -941,6 +953,7 @@ export default function RadarPage() {
         lidmaatschap of login kunt boeken, tonen we hier niet. Afstanden met &quot;(ca.)&quot; zijn gemeten tot het
         midden van de plaats, niet tot het exacte clubadres.
       </p>
-    </main>
+      </main>
+    </>
   );
 }

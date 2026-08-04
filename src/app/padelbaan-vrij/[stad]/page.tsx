@@ -3,10 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { STAD_SLUGS, haalStadData, clubsOpAfstand, boekingssystemenTekst, type StadSlug } from "@/lib/stadsPaginas";
 
-// Straal voor de Radar-CTA: ruim genoeg om ook net-buiten-de-stad-clubs mee
-// te nemen (bv. Haarlemmerstroom net buiten Haarlem-centrum), binnen de
-// nieuwe 25km-max van de straal-slider (zie radar/page.tsx, 3 aug 2026).
-const CTA_STRAAL_KM = 15;
+// Straal voor de Radar-CTA: bewust klein gehouden (4 aug 2026, Xander: "een
+// korte range van max 5km anders blijft die laden") — bij een straal als de
+// vorige 15km valt bijvoorbeeld heel Amsterdam met 11 clubs in één keer
+// binnen het zoekgebied, en de Radar haalt live beschikbaarheid per club op
+// (geen gecachede index), dus dat voelt aan als vastlopen. 5km is ruim
+// genoeg om de clubs die op de stad-pagina hieronder staan mee te nemen,
+// zonder in één klap alles tegelijk te bevragen.
+const CTA_STRAAL_KM = 5;
 
 function isStadSlug(waarde: string): waarde is StadSlug {
   return (STAD_SLUGS as string[]).includes(waarde);
