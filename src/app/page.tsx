@@ -40,6 +40,22 @@ export default function Home() {
             Vrij baan om te padellen. VrijeBaan bundelt live beschikbaarheid van padelclubs bij jou in de buurt — zoek
             op adres, stel je straal in en boek direct bij de club zelf.
           </p>
+          {/* Xander (4 aug 2026): "maak duidelijk dat je via telegram
+              notificaties krijgt bij een account aanmaken, daar is de app
+              natuurlijk om te doen" — de Radar (hierboven) is het zoeken,
+              maar het ECHTE punt is dat je niet meer zelf hoeft te zoeken.
+              Telegram-blauw als klein, herkenbaar accent — verder gewoon de
+              bestaande donkere kaart-stijl. */}
+          <div className="mt-6 flex max-w-xl items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+            <svg viewBox="0 0 24 24" className="mt-0.5 h-6 w-6 shrink-0 fill-[#2AABEE]" aria-hidden="true">
+              <path d="M9.036 15.803 8.83 20.79c.44 0 .63-.19.86-.42l2.07-1.98 4.29 3.14c.79.44 1.35.21 1.56-.73l2.83-13.3c.28-1.15-.42-1.6-1.19-1.32L2.6 10.86c-1.12.44-1.1 1.06-.19 1.34l4.6 1.44 10.68-6.74c.5-.33.96-.15.58.18Z" />
+            </svg>
+            <p className="text-sm text-slate-300">
+              <span className="font-semibold text-white">Maak een gratis account en je hoeft nooit meer zelf te checken.</span>{" "}
+              Volg een club of stel je vaste speelmoment in, en VrijeBaan stuurt je automatisch een Telegram-bericht
+              zodra er een plek vrijkomt.
+            </p>
+          </div>
           <p className="mt-3 text-sm font-medium text-ball-400">
             Nu al {TOTAAL_BANEN} padelbanen aangesloten bij {TOTAAL_CLUBS} clubs door heel Nederland.
           </p>

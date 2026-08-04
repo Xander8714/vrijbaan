@@ -110,7 +110,7 @@ export default async function AccountPage({
         <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} heeftTelefoon={!!rij?.telefoon} />
       </div>
 
-      <ProfielFormulier userId={user.id} beginProfiel={profiel} />
+      <ProfielFormulier userId={user.id} email={user.email ?? ""} beginProfiel={profiel} />
 
       <div className="mt-6">
         <VasteMomenten userId={user.id} beginMomenten={beginMomenten} favorieteClubs={favorieteClubs} />

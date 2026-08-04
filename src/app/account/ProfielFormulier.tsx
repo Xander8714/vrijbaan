@@ -38,9 +38,16 @@ function herkenClub(ruw: string): string {
  */
 export default function ProfielFormulier({
   userId,
+  email,
   beginProfiel,
 }: {
   userId: string;
+  // Nodig voor de upsert hieronder — email is NOT NULL zonder default op
+  // profiles, dus zonder dit veld faalt een upsert (bv. voor een echt
+  // ontbrekende rij) met "null value in column email violates not-null
+  // constraint" i.p.v. gewoon de rij aan te maken (4 aug 2026, gevonden bij
+  // het testen van de upsert-fix voor vdheuvelx@gmail.com).
+  email: string;
   beginProfiel: Profiel;
 }) {
   const router = useRouter();
@@ -140,6 +147,7 @@ export default function ProfielFormulier({
       .from("profiles")
       .upsert({
         id: userId,
+        email,
         voornaam: profiel.voornaam,
         achternaam: profiel.achternaam,
         // speelsterkte/bondsnummer staan niet meer in het formulier hieronder
