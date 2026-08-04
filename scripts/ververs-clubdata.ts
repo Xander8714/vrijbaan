@@ -118,7 +118,12 @@ async function main(): Promise<void> {
   }`;
   run(`git add ${CLUBDATA_PADEN}`);
   run(`git commit -m ${JSON.stringify(commitBoodschap)}`);
-  const pushResultaat = run("git push origin master");
+  // Bewust een apart remote voor de push, niet "origin" — origin blijft op
+  // anonieme HTTPS staan (nodig voor "git pull" in scripts/deploy-vps.sh,
+  // dat moet altijd blijven werken, ook los van deze deploy key). Pushen
+  // gaat via een losse SSH-deploy-key met schrijfrechten (zie
+  // PROJECTPLAN.md §11, 4 aug 2026).
+  const pushResultaat = run("git push push-origin master");
   if (!pushResultaat.ok) {
     await meldAdmin(`⚠️ Clubdata gecommit, maar pushen naar GitHub mislukte (deploy key ontbreekt/verlopen?):\n${pushResultaat.output.slice(-500)}`);
     return;
