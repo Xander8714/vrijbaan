@@ -32,6 +32,7 @@ import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie }
 import { binnenTijdvenster, dagLabel, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "./tijd";
 import { bouwSessieLink, maakInlogToken } from "./telegramSessie";
 import { MAX_CLUBS_VER_VOORUIT } from "./radarSelectie";
+import type { RadarOverdrachtData } from "./radarOverdracht";
 
 const STRAAL_ADHOC_KM = 10;
 // Zelfde soort grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts,
@@ -294,18 +295,21 @@ export async function zoekBeschikbaarheidVoorChat(
   // Bewust naar de eigen site, niet naar de boekingssystemen zelf — een
   // gebruiker die via de bot zoekt, boekt zo via VrijeBaan i.p.v. dat de
   // click meteen naar een externe site gaat.
-  const radarPad = `/radar?${linkParams.toString()}`;
-  let radarLink = `${siteUrl}${radarPad}`;
-  if (sessieBrug) {
+  const maakRadarLink = async (radarData?: RadarOverdrachtData) => {
+    const kalePad = `/radar?${linkParams.toString()}`;
+    if (!sessieBrug) return `${siteUrl}${kalePad}`;
     try {
-      const token = await maakInlogToken(sessieBrug.admin, sessieBrug.profielId);
-      radarLink = bouwSessieLink(siteUrl, token, radarPad);
+      const token = await maakInlogToken(sessieBrug.admin, sessieBrug.profielId, radarData);
+      const paramsMetOverdracht = new URLSearchParams(linkParams);
+      if (radarData) paramsMetOverdracht.set("overdracht", token);
+      return bouwSessieLink(siteUrl, token, `/radar?${paramsMetOverdracht.toString()}`);
     } catch (err) {
-      // Nooit de zoekopdracht laten mislukken omdat het inloggen-optimaliseren
-      // faalt — de kale link werkt nog steeds, alleen niet automatisch ingelogd.
+      // De zoekopdracht zelf blijft bruikbaar als de sessie-/dataoverdracht
+      // faalt; alleen direct inloggen en meteen tonen vallen dan terug.
       console.error("[telegram] Inlogtoken voor radarlink maken mislukt, val terug op kale link:", err);
+      return `${siteUrl}${kalePad}`;
     }
-  }
+  };
 
   const beschikbaarheid: BeschikbaarheidRij[] = [];
   try {
@@ -319,10 +323,18 @@ export async function zoekBeschikbaarheidVoorChat(
       beschikbaarheid.push(...batch.beschikbaarheid);
     }
   } catch {
+    const radarLink = await maakRadarLink();
     return (
       `Live beschikbaarheid ophalen lukte nu niet. Bekijk het zelf op de Radar:\n\n${radarLink}`
     );
   }
+
+  const overdracht: RadarOverdrachtData = {
+    datum,
+    beschikbaarheid,
+    opgehaaldOp: new Date().toISOString(),
+  };
+  const radarLink = await maakRadarLink(overdracht);
 
   const perClub = new Map(beschikbaarheid.map((r) => [r.clubId, r]));
   const regels: string[] = [];

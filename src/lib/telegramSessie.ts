@@ -16,16 +16,21 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "crypto";
+import type { RadarOverdrachtData } from "./radarOverdracht";
 
 const TOKEN_GELDIGHEID_MINUTEN = 5;
 
 /** Maakt een eenmalig inlogtoken voor `profielId` en slaat het kort op. */
-export async function maakInlogToken(admin: SupabaseClient, profielId: string): Promise<string> {
+export async function maakInlogToken(
+  admin: SupabaseClient,
+  profielId: string,
+  radarData?: RadarOverdrachtData
+): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   const verlooptOp = new Date(Date.now() + TOKEN_GELDIGHEID_MINUTEN * 60_000).toISOString();
   const { error } = await admin
     .from("telegram_login_tokens")
-    .insert({ token, profile_id: profielId, verloopt_op: verlooptOp });
+    .insert({ token, profile_id: profielId, verloopt_op: verlooptOp, radar_data: radarData ?? null });
   if (error) throw new Error(`Inlogtoken aanmaken mislukt: ${error.message}`);
   return token;
 }

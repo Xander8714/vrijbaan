@@ -9,6 +9,7 @@ import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOO
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import { leesJsonRespons } from "@/lib/jsonResponse";
 import { maakRadarSelectie } from "@/lib/radarSelectie";
+import { overdrachtNaarMetingen, type RadarOverdrachtData } from "@/lib/radarOverdracht";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
 
@@ -51,6 +52,7 @@ export default function RadarPage() {
   const [metingBezig, setMetingBezig] = useState(false);
   const [metingFout, setMetingFout] = useState<string | null>(null);
   const [opgehaaldOp, setOpgehaaldOp] = useState<string | null>(null);
+  const [overdrachtGeladen, setOverdrachtGeladen] = useState(false);
 
   // Datum uit een deep link die net buiten het standaard 7-daagse venster
   // valt (bv. de wekelijkse-herinneringslink in Telegram, die altijd exact
@@ -181,6 +183,7 @@ export default function RadarPage() {
       // botlinks naar /radar?lat=..&lon=..&plaats=..&straal=..&tijd=.. wijzen,
       // zodat boekingslinks via de site lopen i.p.v. rechtstreeks naar de club.
       const urlParams = new URLSearchParams(window.location.search);
+      const overdrachtToken = urlParams.get("overdracht");
       const urlLat = Number(urlParams.get("lat"));
       const urlLon = Number(urlParams.get("lon"));
       const uitUrl: Zoekgebied | null =
@@ -241,13 +244,22 @@ export default function RadarPage() {
       }
 
       setUserId(user.id);
-      const [{ data: clubs }, { data: profiel }] = await Promise.all([
+      const overdrachtPromise = overdrachtToken
+        ? fetch(`/api/radar-overdracht?token=${encodeURIComponent(overdrachtToken)}`, { cache: "no-store" })
+            .then((res) => leesJsonRespons<RadarOverdrachtData>(res))
+            .catch((err) => {
+              console.warn("[radar] Klaargezette Telegram-meting niet beschikbaar; val terug op live ophalen:", err);
+              return null;
+            })
+        : Promise.resolve(null);
+      const [{ data: clubs }, { data: profiel }, overdracht] = await Promise.all([
         supabase.from("gevolgde_clubs").select("club_id").eq("user_id", user.id),
         supabase
           .from("profiles")
           .select("subscription_status, woonplaats, lat, lon, zoekstraal_km, voornaam, achternaam")
           .eq("id", user.id)
           .single(),
+        overdrachtPromise,
       ]);
       setGevolgd(new Set((clubs ?? []).map((r) => r.club_id)));
       setIsPro(profiel?.subscription_status === "pro");
@@ -265,8 +277,20 @@ export default function RadarPage() {
       const gekozen = uitUrl ?? uitProfiel ?? uitOpslag;
       if (gekozen) { setZoekgebied(gekozen); setStraalKm(gekozen.straalKm); }
       else gebruikMijnLocatie(); // idem: automatisch laden i.p.v. wachten op een klik
-      // Zelfde botlink-uitzondering als hierboven in de niet-ingelogde tak.
-      if (uitUrl) setHandmatigeZoekopdracht((n) => n + 1);
+      if (overdracht && (!urlDatum || overdracht.datum === urlDatum)) {
+        setMetingen(overdrachtNaarMetingen(overdracht));
+        setOpgehaaldOp(overdracht.opgehaaldOp);
+        setOverdrachtGeladen(true);
+      } else if (uitUrl) {
+        // Oude botlink of verlopen overdracht: behoud de bestaande veilige
+        // terugval en haal de data alsnog live op.
+        setHandmatigeZoekopdracht((n) => n + 1);
+      }
+      if (overdrachtToken) {
+        const schoneUrl = new URL(window.location.href);
+        schoneUrl.searchParams.delete("overdracht");
+        window.history.replaceState(null, "", `${schoneUrl.pathname}${schoneUrl.search}${schoneUrl.hash}`);
+      }
       setLaden(false);
     };
 
@@ -524,6 +548,7 @@ export default function RadarPage() {
   }, [clubsOmTeTonen, metingen, gekozenDatum, voorkeurstijd, margeUren, metingBezig]);
 
   const metPassendeTijd = zichtbareClubs.filter((c) => c.passendeTijden.length > 0).length;
+  const heeftZoekresultaat = handmatigeZoekopdracht > 0 || overdrachtGeladen;
 
   // Datum bij de resultatentekst (5 aug 2026, Xander: bij een deep link met
   // een datum ver vooruit was nergens te zien vóór welke dag de resultaten
@@ -868,15 +893,15 @@ export default function RadarPage() {
             ogen, (2) tijdens het zoeken evenmin ("geen enkele club" verscheen
             eerder al tíjdens het ophalen, terwijl er na afloop wél 13 vrije
             banen bleken te zijn), (3) pas na afloop het echte resultaat. */}
-        {voorkeurstijd && handmatigeZoekopdracht === 0 && (
+        {voorkeurstijd && !heeftZoekresultaat && (
           <p className="mt-3 text-sm text-slate-500">
             Klik op &quot;Zoek nu&quot; hierboven om te zoeken naar een vrije baan rond {voorkeurstijd} op {gekozenDagLabel}.
           </p>
         )}
-        {voorkeurstijd && handmatigeZoekopdracht > 0 && metingBezig && (
+        {voorkeurstijd && heeftZoekresultaat && metingBezig && (
           <p className="mt-3 text-sm text-slate-500">Nog aan het zoeken naar een vrije baan rond {voorkeurstijd} op {gekozenDagLabel}…</p>
         )}
-        {voorkeurstijd && handmatigeZoekopdracht > 0 && !metingBezig && (
+        {voorkeurstijd && heeftZoekresultaat && !metingBezig && (
           <p className="mt-3 text-sm text-slate-600">
             {metPassendeTijd > 0
               ? `${metPassendeTijd} club(s) met een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur) op ${gekozenDagLabel}.`
@@ -968,7 +993,7 @@ export default function RadarPage() {
           {/* Zoeken gebeurt niet meer automatisch (zie de toelichting bij het
               ophaal-effect) — zonder deze hint is niet duidelijk waarom er nog
               geen tijden staan. */}
-          {handmatigeZoekopdracht === 0 && (
+          {!heeftZoekresultaat && (
             <p className="mt-3 rounded-md bg-court-50 px-4 py-2 text-sm text-court-800">
               Klik op &quot;🔍 Zoek nu&quot; hierboven om de actuele beschikbaarheid op te halen.
             </p>

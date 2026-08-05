@@ -1,4 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   bevatVerbodenActie,
   extraheerFlexibeleTijd,
@@ -215,5 +216,49 @@ describe("zoekBeschikbaarheidVoorChat", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect((url.searchParams.get("clubs") ?? "").split(",")).toHaveLength(4);
+  });
+
+  it("zet de gevonden data klaar in dezelfde eenmalige link als de Telegram-login", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const ids = (url.searchParams.get("clubs") ?? "").split(",").filter(Boolean);
+      return Response.json({
+        beschikbaarheid: ids.map((clubId) => ({
+          clubId,
+          sloten: [{ tijd: "20:30", prijs: null }],
+        })),
+      });
+    }));
+    const opgeslagenRijen: Array<{ token: string; radar_data: unknown }> = [];
+    const insert = vi.fn(async (rij: { token: string; radar_data: unknown }) => {
+      opgeslagenRijen.push(rij);
+      return { error: null };
+    });
+    const admin = {
+      from: vi.fn(() => ({ insert })),
+    } as unknown as SupabaseClient;
+
+    const bericht = await zoekBeschikbaarheidVoorChat(
+      { lat: 52.38242027, lon: 4.64668526 },
+      "Haarlem",
+      "20:30",
+      "https://example.test",
+      7,
+      { admin, profielId: "00000000-0000-0000-0000-000000000001" }
+    );
+
+    expect(insert).toHaveBeenCalledOnce();
+    const opgeslagen = opgeslagenRijen[0];
+    expect(opgeslagen).toBeDefined();
+    expect(opgeslagen.radar_data).toMatchObject({
+      datum: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      beschikbaarheid: expect.any(Array),
+    });
+
+    const link = bericht.match(/https:\/\/example\.test\/api\/auth\/telegram-login\?[^\s]+/)?.[0];
+    expect(link).toBeDefined();
+    const loginUrl = new URL(link!);
+    const redirect = new URL(loginUrl.searchParams.get("redirect")!, "https://example.test");
+    expect(redirect.searchParams.get("overdracht")).toBe(opgeslagen.token);
   });
 });
