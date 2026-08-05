@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { MetaApiFout, maakMetaClient, type MetaClient } from "./meta";
 import { renderSocialVisualJpeg } from "./media";
 import type { SocialVisual } from "./types";
-import { aantalSocialVisualSlides } from "./visual";
+import { aantalSocialVisualSlides, isSocialStoryVisual } from "./visual";
 
 const STANDAARD_BUCKET = "social-media";
 const MAXIMALE_POGINGEN = 5;
@@ -122,16 +122,16 @@ async function haalVoortgang(postId: string): Promise<{ ids: Record<string, stri
   };
 }
 
-async function bewaarPlatformPost(postId: string, platform: Platform, externalId: string): Promise<Record<string, string>> {
+async function bewaarPlatformPost(postId: string, platformSleutel: string, externalId: string): Promise<Record<string, string>> {
   const voortgang = await haalVoortgang(postId);
-  const ids = { ...voortgang.ids, [platform]: externalId };
+  const ids = { ...voortgang.ids, [platformSleutel]: externalId };
   const nu = new Date().toISOString();
   const { error } = await supabaseAdmin()
     .from("social_media_posts")
     .update({
       external_post_ids: ids,
       updated_at: nu,
-      log: [...voortgang.log, { at: nu, event: "platform_published", platform, externalId }],
+      log: [...voortgang.log, { at: nu, event: "platform_published", platform: platformSleutel, externalId }],
     })
     .eq("id", postId)
     .eq("status", "publishing");
@@ -226,15 +226,31 @@ export async function publiceerEenVerschuldigdePost(opties: {
     const imageUrls = assets.map((asset) => asset.publicUrl);
     let ids = post.external_post_ids ?? {};
 
+    const story = isSocialStoryVisual(post.visual);
     for (const platform of platforms) {
-      if (ids[platform]) continue;
-      const externalId = platform === "instagram"
-        ? await metaClient.publiceerInstagram(imageUrls, post.caption)
-        : await metaClient.publiceerFacebook(imageUrls, post.caption);
-      ids = await bewaarPlatformPost(post.id, platform, externalId);
+      if (!story) {
+        if (ids[platform]) continue;
+        const externalId = platform === "instagram"
+          ? await metaClient.publiceerInstagram(imageUrls, post.caption)
+          : await metaClient.publiceerFacebook(imageUrls, post.caption);
+        ids = await bewaarPlatformPost(post.id, platform, externalId);
+        continue;
+      }
+
+      for (const [index, imageUrl] of imageUrls.entries()) {
+        const voortgangSleutel = `${platform}_story_${index + 1}`;
+        if (ids[voortgangSleutel]) continue;
+        const externalId = platform === "instagram"
+          ? await metaClient.publiceerInstagramStory(imageUrl)
+          : await metaClient.publiceerFacebookStory(imageUrl);
+        ids = await bewaarPlatformPost(post.id, voortgangSleutel, externalId);
+      }
     }
 
-    if (platforms.some((platform) => !ids[platform])) {
+    const verwachteSleutels = story
+      ? platforms.flatMap((platform) => imageUrls.map((_, index) => `${platform}_story_${index + 1}`))
+      : platforms;
+    if (verwachteSleutels.some((sleutel) => !ids[sleutel])) {
       throw new Error("Niet alle gevraagde platformen hebben een Meta-post-id teruggegeven.");
     }
     await markeerGepubliceerd(post.id, ids);

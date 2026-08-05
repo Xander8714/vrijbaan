@@ -3,7 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { haalSocialMediaAdmin } from "@/lib/socialMedia/admin";
 import { haalSocialPostsVoorBeheer } from "@/lib/socialMedia/repository";
-import { aantalSocialVisualSlides } from "@/lib/socialMedia/visual";
+import { aantalSocialVisualSlides, isSocialStoryVisual } from "@/lib/socialMedia/visual";
 import { archiveerConceptAction, keurConceptGoedAction } from "./actions";
 import { ConceptGeneratorKnoppen } from "./ConceptGeneratorKnoppen";
 
@@ -57,7 +57,7 @@ export default async function SocialMediaBeheerPage() {
   const verwerkt = posts.filter((post) => post.status !== "pending_approval");
   const bestaandeAvondpost = posts.find((post) => post.subjectKey === `daily-evening:${datumAmsterdam(new Date())}`);
   const avondGeblokkeerd = bestaandeAvondpost
-    ? `Voor vandaag bestaat al een 3-stedenpost met status ${STATUS_LABEL[bestaandeAvondpost.status] ?? bestaandeAvondpost.status}.`
+    ? `Voor vandaag bestaan al 3-stedenstories met status ${STATUS_LABEL[bestaandeAvondpost.status] ?? bestaandeAvondpost.status}.`
     : null;
 
   return (
@@ -95,7 +95,9 @@ export default async function SocialMediaBeheerPage() {
                   {Array.from({ length: aantalSocialVisualSlides(post.visual) }, (_, slide) => (
                     <Image key={slide} src={`/api/beheer/social-media/${post.id}/visual?slide=${slide}`}
                       alt={`Socialmedia-visual ${slide + 1} voor ${post.city ?? "De Vrije Baan"}`}
-                      width={540} height={540} className="aspect-square w-full object-cover" unoptimized />
+                      width={540} height={isSocialStoryVisual(post.visual) ? 960 : 540}
+                      className={`${isSocialStoryVisual(post.visual) ? "aspect-[9/16]" : "aspect-square"} w-full object-cover`}
+                      unoptimized />
                   ))}
                 </div>
                 <div className="p-3">

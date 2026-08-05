@@ -30,7 +30,7 @@ export function ConceptGeneratorKnoppen({ avondGeblokkeerd }: { avondGeblokkeerd
             disabled={avondBezig || Boolean(avondGeblokkeerd)}
             className="rounded-lg border border-court-700 px-5 py-3 font-semibold text-court-700 shadow-sm hover:bg-court-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
           >
-            {avondBezig ? "Bezig…" : avondGeblokkeerd ? "3-stedenpost bestaat al" : "Genereer 3-stedenpost"}
+            {avondBezig ? "Bezig…" : avondGeblokkeerd ? "3-stedenstories bestaan al" : "Genereer 3-stedenstories"}
           </button>
         </form>
       </div>

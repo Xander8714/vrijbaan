@@ -1,5 +1,5 @@
 /**
- * Maakt eenmaal per dag de 3-steden-avondpost uit de actuele cache. Het
+ * Maakt eenmaal per dag de 3-steden-avondstories uit de actuele cache. Het
  * concept blijft pending_approval en wordt via Telegram aangeboden; deze
  * worker publiceert zelf niets.
  */
@@ -25,14 +25,14 @@ async function main(): Promise<void> {
 
   try {
     const id = await genereerEnBewaarAvondConcept();
-    console.log(`Dagelijkse 3-stedenpost aangemaakt: ${id} (wacht op goedkeuring).`);
+    console.log(`Dagelijkse 3-stedenstories aangemaakt: ${id} (wachten op goedkeuring).`);
   } catch (fout) {
     const bericht = fout instanceof Error ? fout.message : String(fout);
 
     // Persistent timers kunnen na een herstart dezelfde kalenderdag opnieuw
     // lopen. Een bestaand dagconcept is dan een geldige, idempotente uitkomst.
     if (bericht === "Voor dit onderwerp is al eerder een concept gemaakt.") {
-      console.log("Dagelijkse 3-stedenpost bestaat al; deze run is overgeslagen.");
+      console.log("Dagelijkse 3-stedenstories bestaan al; deze run is overgeslagen.");
       return;
     }
 
@@ -41,6 +41,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((fout) => {
-  console.error("Dagelijkse 3-stedenpost kon niet worden gemaakt:", fout instanceof Error ? fout.message : String(fout));
+  console.error("Dagelijkse 3-stedenstories konden niet worden gemaakt:", fout instanceof Error ? fout.message : String(fout));
   process.exitCode = 1;
 });

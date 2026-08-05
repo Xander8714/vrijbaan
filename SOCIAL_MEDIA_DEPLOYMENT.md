@@ -58,14 +58,16 @@ geen `pending_approval`-concepten. Bij een succesvolle publicatie verschijnen
 de Meta-post-id's en het live-tijdstip in `/beheer/social-media`.
 
 De generator ververst dagelijks vanaf 15:45 Europe/Amsterdam de 28 clubs uit
-de zes teststeden voor vandaag en maakt daarna één carrousel met de drie steden
-met de meeste beschikbare starttijden tussen 17:00 en 21:30. Het resultaat
-blijft `pending_approval` en wordt via Telegram aangeboden; de generator
-publiceert nooit zelfstandig.
+de zes teststeden voor vandaag en maakt daarna drie verticale 9:16 Stories:
+één per geselecteerde stad, met starttijden tussen 17:00 en 21:30. Na
+goedkeuring publiceert de worker elk Story-frame afzonderlijk op Instagram en
+Facebook. Vaste campagneposts blijven feedposts zonder actuele tijden. Het
+resultaat blijft `pending_approval` en wordt via Telegram aangeboden; de
+generator publiceert nooit zelfstandig.
 
 ## Reeds uitgevoerde lokale controles
 
-- `npm test`: 10 bestanden, 107 tests geslaagd
+- `npm test`: 10 bestanden, 112 tests geslaagd
 - `npx tsc --noEmit`: geslaagd
 - `npm run lint`: geen fouten; drie reeds bestaande waarschuwingen elders
 - `npm run build`: geslaagd met Next.js 16.2.11

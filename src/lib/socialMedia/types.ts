@@ -43,7 +43,13 @@ export type AvailabilityCarouselVisual = {
   accent: "court-ball";
 };
 
-export type SocialVisual = AvailabilityVisual | AvailabilityCarouselVisual | EditorialVisual;
+export type AvailabilityStoryVisual = {
+  template: "availability-story-v1";
+  slides: AvailabilityVisual[];
+  accent: "court-ball";
+};
+
+export type SocialVisual = AvailabilityVisual | AvailabilityCarouselVisual | AvailabilityStoryVisual | EditorialVisual;
 
 export type GegenereerdConcept = {
   status: "pending_approval";

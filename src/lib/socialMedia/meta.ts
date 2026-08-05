@@ -173,6 +173,22 @@ export function maakMetaClient(configuratie: MetaConfiguratie, fetcher: FetchLik
     return gepubliceerd.id;
   }
 
+  async function publiceerInstagramStory(imageUrl: string): Promise<string> {
+    const antwoord = await verzoek<{ id?: string }>(`${instagramId}/media`, {
+      methode: "POST",
+      parameters: { image_url: imageUrl, media_type: "STORIES" },
+    });
+    if (!antwoord.id) throw new MetaApiFout("Meta gaf geen Instagram Story-container-id terug.");
+    await wachtOpContainer(antwoord.id);
+    const gepubliceerd = await verzoek<{ id?: string }>(`${instagramId}/media_publish`, {
+      methode: "POST",
+      parameters: { creation_id: antwoord.id },
+      publicatie: true,
+    });
+    if (!gepubliceerd.id) throw new MetaApiFout("Meta gaf geen Instagram Story-id terug.");
+    return gepubliceerd.id;
+  }
+
   async function publiceerFacebook(imageUrls: string[], caption: string): Promise<string> {
     if (imageUrls.length === 0 || imageUrls.length > 10) {
       throw new Error("Facebook ondersteunt voor deze worker 1 tot en met 10 afbeeldingen.");
@@ -212,6 +228,22 @@ export function maakMetaClient(configuratie: MetaConfiguratie, fetcher: FetchLik
     return bericht.id;
   }
 
+  async function publiceerFacebookStory(imageUrl: string): Promise<string> {
+    const foto = await verzoek<{ id?: string }>(`${pageId}/photos`, {
+      methode: "POST",
+      parameters: { url: imageUrl, published: "false" },
+    });
+    if (!foto.id) throw new MetaApiFout("Meta gaf geen Facebook Story-foto-id terug.");
+    const gepubliceerd = await verzoek<{ id?: string; post_id?: string }>(`${pageId}/photo_stories`, {
+      methode: "POST",
+      parameters: { photo_id: foto.id },
+      publicatie: true,
+    });
+    const storyId = gepubliceerd.post_id ?? gepubliceerd.id;
+    if (!storyId) throw new MetaApiFout("Meta gaf geen Facebook Story-id terug.");
+    return storyId;
+  }
+
   async function controleerKoppeling(): Promise<MetaKoppeling> {
     const accounts = await verzoek<{
       data?: Array<{
@@ -239,7 +271,13 @@ export function maakMetaClient(configuratie: MetaConfiguratie, fetcher: FetchLik
     return { pageId, pageName: pagina.name ?? "Onbekende pagina", instagramAccountId: instagramId };
   }
 
-  return { controleerKoppeling, publiceerFacebook, publiceerInstagram };
+  return {
+    controleerKoppeling,
+    publiceerFacebook,
+    publiceerFacebookStory,
+    publiceerInstagram,
+    publiceerInstagramStory,
+  };
 }
 
 export type MetaClient = ReturnType<typeof maakMetaClient>;

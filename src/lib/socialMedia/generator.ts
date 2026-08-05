@@ -296,11 +296,11 @@ export function bouwDagelijkseAvondConcept(kandidaat: DagelijkseAvondKandidaat):
     caption,
     hashtags,
     visual: {
-      template: "availability-carousel-v1",
+      template: "availability-story-v1",
       accent: "court-ball",
       slides: kandidaat.steden.map((stad) => ({
         template: "availability-v1",
-        eyebrow: "VANAVOND NOG PADELEN?",
+        eyebrow: "VANAVOND NOG PADELLEN?",
         headline: stad.stad,
         subline: `${label} • ${stad.tijden.length} ${stad.tijden.length === 1 ? "tijd" : "tijden"}`,
         times: stad.tijden.slice(0, MAX_TIJDEN_OP_VISUAL),

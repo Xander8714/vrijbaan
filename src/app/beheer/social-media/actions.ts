@@ -37,7 +37,7 @@ export async function genereerAvondConceptAction(_vorige: GenereerConceptState):
     await vereisSocialMediaAdmin();
     await genereerEnBewaarAvondConcept();
     revalidatePath("/beheer/social-media");
-    return { status: "success", message: "De dagelijkse 3-stedenpost staat klaar voor goedkeuring." };
+    return { status: "success", message: "De dagelijkse 3-stedenstories staan klaar voor goedkeuring." };
   } catch (fout) {
     return { status: "error", message: foutmelding(fout) };
   }

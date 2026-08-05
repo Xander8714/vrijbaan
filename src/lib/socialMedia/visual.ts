@@ -1,5 +1,18 @@
 import type { AvailabilityVisual, EditorialSlide, SocialVisual } from "./types";
 
+const VERBODEN_SPELLING_IN_VISUAL = /\bpadelen\b/i;
+
+/**
+ * VrijeBaan gebruikt in Nederlandse lopende tekst consequent "padellen".
+ * Blokkeer de veelgemaakte spelfout voordat een afbeelding wordt opgeslagen
+ * of gerenderd, zodat die niet opnieuw in een JPEG kan belanden.
+ */
+export function controleerSocialVisualSpelling(visual: SocialVisual): void {
+  if (VERBODEN_SPELLING_IN_VISUAL.test(JSON.stringify(visual))) {
+    throw new Error('Socialvisual bevat de spelfout "padelen"; gebruik "padellen".');
+  }
+}
+
 function escapeXml(waarde: string): string {
   return waarde.replace(/[<>&\"']/g, (teken) => ({
     "<": "&lt;",
@@ -52,7 +65,12 @@ export function aantalSocialVisualSlides(visual: SocialVisual): number {
   return visual.template === "availability-v1" ? 1 : visual.slides.length;
 }
 
+export function isSocialStoryVisual(visual: SocialVisual): boolean {
+  return visual.template === "availability-story-v1";
+}
+
 export function renderSocialVisualSvg(visual: SocialVisual, slideIndex = 0): string {
+  controleerSocialVisualSpelling(visual);
   if (visual.template === "editorial-carousel-v1") {
     const begrensd = Math.max(0, Math.min(slideIndex, visual.slides.length - 1));
     return renderEditorialSlide(visual.slides[begrensd], begrensd, visual.slides.length);
@@ -61,7 +79,38 @@ export function renderSocialVisualSvg(visual: SocialVisual, slideIndex = 0): str
     const begrensd = Math.max(0, Math.min(slideIndex, visual.slides.length - 1));
     return renderAvailabilitySlide(visual.slides[begrensd], begrensd, visual.slides.length);
   }
+  if (visual.template === "availability-story-v1") {
+    const begrensd = Math.max(0, Math.min(slideIndex, visual.slides.length - 1));
+    return renderAvailabilityStorySlide(visual.slides[begrensd], begrensd, visual.slides.length);
+  }
   return renderAvailabilitySlide(visual, 0, 1);
+}
+
+function renderAvailabilityStorySlide(visual: AvailabilityVisual, slideIndex: number, totaal: number): string {
+  const tijden = visual.times
+    .slice(0, 5)
+    .map((tijd, index) => {
+      const x = 110 + (index % 2) * 445;
+      const y = 900 + Math.floor(index / 2) * 150;
+      return `<g><rect x="${x}" y="${y}" width="390" height="104" rx="52" fill="#ccff33"/><text x="${x + 195}" y="${y + 70}" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="800" fill="#0b1412">${escapeXml(tijd)}</text></g>`;
+    })
+    .join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-label="${escapeXml(visual.headline)}">
+  <defs><linearGradient id="story-court" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1412"/><stop offset="1" stop-color="#145f5a"/></linearGradient></defs>
+  <rect width="1080" height="1920" fill="url(#story-court)"/>
+  <path d="M70 120 H1010 M70 1800 H1010 M150 70 V1850 M930 70 V1850 M150 960 H930" stroke="#ffffff" stroke-opacity="0.12" stroke-width="6"/>
+  <circle cx="900" cy="220" r="92" fill="#ccff33"/><path d="M848 220c30-40 75-53 105-24M848 220c30 40 75 53 105 24" fill="none" stroke="#0b1412" stroke-width="9"/>
+  <text x="90" y="210" font-family="Arial, sans-serif" font-size="31" font-weight="800" letter-spacing="3" fill="#ccff33">${escapeXml(kortTekst(visual.eyebrow, 44))}</text>
+  <text x="90" y="500" font-family="Arial, sans-serif" font-size="92" font-weight="900" fill="#ffffff">${escapeXml(kortTekst(visual.headline, 21))}</text>
+  <text x="90" y="610" font-family="Arial, sans-serif" font-size="51" font-weight="650" fill="#d9f5ef">${escapeXml(kortTekst(visual.subline, 34))}</text>
+  <text x="90" y="800" font-family="Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="2" fill="#ffffff">BESCHIKBARE STARTTIJDEN</text>
+  ${tijden}
+  <rect x="90" y="1510" width="900" height="118" rx="59" fill="#ccff33"/>
+  <text x="540" y="1583" text-anchor="middle" font-family="Arial, sans-serif" font-size="35" font-weight="900" fill="#0b1412">${escapeXml(kortTekst(visual.cta, 42))}</text>
+  <text x="90" y="1780" font-family="Arial, sans-serif" font-size="42" font-weight="800" fill="#ffffff">Vrije<tspan fill="#ccff33">Baan</tspan></text>
+  <text x="990" y="1780" text-anchor="end" font-family="Arial, sans-serif" font-size="28" fill="#89a59f">${slideIndex + 1}/${totaal} • 24 UUR ACTUEEL</text>
+</svg>`;
 }
 
 function renderAvailabilitySlide(visual: AvailabilityVisual, slideIndex: number, totaal: number): string {

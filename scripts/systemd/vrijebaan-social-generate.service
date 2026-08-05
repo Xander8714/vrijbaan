@@ -1,5 +1,5 @@
 [Unit]
-Description=Maak de dagelijkse VrijeBaan 3-steden-avondpost
+Description=Maak de dagelijkse VrijeBaan 3-steden-avondstories
 After=network-online.target
 Wants=network-online.target
 

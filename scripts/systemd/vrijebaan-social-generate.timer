@@ -1,5 +1,5 @@
 [Unit]
-Description=Maak dagelijks rond 16:00 de VrijeBaan 3-stedenpost
+Description=Maak dagelijks rond 16:00 de VrijeBaan 3-stedenstories
 
 [Timer]
 OnCalendar=*-*-* 15:45:00 Europe/Amsterdam

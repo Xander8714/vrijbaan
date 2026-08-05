@@ -13,6 +13,7 @@ import {
 import { LAUNCH_CAMPAGNE } from "./campaign";
 import { meldNieuwConceptViaTelegram } from "./telegramGoedkeuring";
 import type { BeschikbaarheidsKandidaat, BeschikbaarheidsSlot, GegenereerdConcept, SocialPostStatus, SocialVisual } from "./types";
+import { controleerSocialVisualSpelling } from "./visual";
 
 const DAGEN_VOORUIT = 7;
 const TESTREGIO_CLUB_IDS = new Set(alleTestregioClubs().map((club) => club.id));
@@ -152,6 +153,8 @@ export async function genereerConceptVoorbeeld(nu: Date = new Date()): Promise<G
  * exact dezelfde dubbelcheck-en-insert nodig, dus hier één keer.
  */
 async function bewaarConcept(concept: GegenereerdConcept, nu: Date): Promise<string> {
+  controleerSocialVisualSpelling(concept.visual);
+
   // Ook afgewezen/gearchiveerde concepten tellen mee. Anders levert de knop
   // na een afwijzing direct opnieuw exact hetzelfde onderwerp op. `limit(1)`
   // houdt deze controle bruikbaar voor historische data waarin zo'n dubbel

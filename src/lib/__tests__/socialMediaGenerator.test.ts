@@ -9,7 +9,7 @@ import {
   kiesDagelijkseTelling,
   kiesInteressantsteBeschikbaarheid,
 } from "../socialMedia/generator";
-import { renderSocialVisualSvg } from "../socialMedia/visual";
+import { controleerSocialVisualSpelling, renderSocialVisualSvg } from "../socialMedia/visual";
 import { LAUNCH_CAMPAGNE } from "../socialMedia/campaign";
 import { renderSocialVisualJpeg } from "../socialMedia/media";
 import sharp from "sharp";
@@ -140,6 +140,15 @@ describe("socialmedia-generator", () => {
     expect(LAUNCH_CAMPAGNE.every((post) => post.visual.template === "editorial-carousel-v1")).toBe(true);
   });
 
+  it("houdt actuele beschikbaarheidstijden uit de vaste campagneposts", () => {
+    const campagneInhoud = LAUNCH_CAMPAGNE.map((post) => JSON.stringify({
+      caption: post.caption,
+      visual: post.visual,
+    })).join("\n");
+    expect(campagneInhoud).not.toMatch(/banen beschikbaar om/i);
+    expect(campagneInhoud).not.toMatch(/\b[0-2][0-9]:[0-5][0-9]\b/);
+  });
+
   it("rendert iedere editorial slide in de bestaande donkere limegroene huisstijl", () => {
     const visual = LAUNCH_CAMPAGNE[0].visual;
     const svg = renderSocialVisualSvg(visual, 1);
@@ -255,14 +264,37 @@ describe("dagelijkse 3-steden-avondpost", () => {
     expect(concept.subjectKey).toBe(`daily-evening:${vandaag}`);
     expect(concept.caption).toContain("tussen 17:00 en 21:30");
     expect(concept.caption).toContain("📍 Amsterdam: 17:00, 18:00, 19:30");
-    expect(concept.visual.template).toBe("availability-carousel-v1");
-    if (concept.visual.template !== "availability-carousel-v1") throw new Error("Verkeerde visualtemplate");
+    expect(concept.visual.template).toBe("availability-story-v1");
+    if (concept.visual.template !== "availability-story-v1") throw new Error("Verkeerde visualtemplate");
     expect(concept.visual.slides).toHaveLength(3);
     expect(concept.visual.slides[1].headline).toBe("Haarlem");
+    expect(concept.visual.slides.every((slide) => slide.eyebrow === "VANAVOND NOG PADELLEN?")).toBe(true);
+    expect(JSON.stringify(concept.visual)).not.toMatch(/\bpadelen\b/i);
     expect(renderSocialVisualSvg(concept.visual, 0)).toContain("1/3");
+  });
+
+  it("blokkeert de spelfout padelen voordat een visual wordt gerenderd", () => {
+    const gekozen = kiesDagelijkseAvondBeschikbaarheid(kandidaten, vandaag, nu)!;
+    const concept = bouwDagelijkseAvondConcept(gekozen);
+    if (concept.visual.template !== "availability-story-v1") throw new Error("Verkeerde visualtemplate");
+    const foutVisual = {
+      ...concept.visual,
+      slides: concept.visual.slides.map((slide) => ({ ...slide, eyebrow: "VANAVOND NOG PADELEN?" })),
+    };
+
+    expect(() => controleerSocialVisualSpelling(foutVisual)).toThrow(/gebruik "padellen"/i);
+    expect(() => renderSocialVisualSvg(foutVisual, 0)).toThrow(/gebruik "padellen"/i);
   });
 
   it("maakt geen dagpost als minder dan drie steden avondbeschikbaarheid hebben", () => {
     expect(kiesDagelijkseAvondBeschikbaarheid(kandidaten.slice(0, 2), vandaag, nu)).toBeNull();
   });
+
+  it("rendert de dagelijkse kaarten als verticale 9:16 Story-JPEG", async () => {
+    const gekozen = kiesDagelijkseAvondBeschikbaarheid(kandidaten, vandaag, nu)!;
+    const concept = bouwDagelijkseAvondConcept(gekozen);
+    const jpeg = await renderSocialVisualJpeg(concept.visual, 0);
+    const metadata = await sharp(jpeg).metadata();
+    expect(metadata).toMatchObject({ format: "jpeg", width: 1080, height: 1920 });
+  }, 15_000);
 });
