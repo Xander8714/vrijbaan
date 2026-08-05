@@ -5,9 +5,10 @@ import { MEETANDPLAY_CLUBS } from "./clubs.meetandplay";
 /**
  * Koppelt een club-id (uit clubs.ts) aan de manier waarop we 'm kunnen pollen.
  * Clubs die hier niet in staan, worden overgeslagen door de polling-job —
- * ofwel omdat het boekingssysteem nog niet bevestigd is, ofwel (Overhout)
- * omdat het systeem wel bevestigd is maar een ingelogde sessie vereist,
- * wat een normale polling-job niet heeft (zie PROJECTPLAN.md §7).
+ * meestal omdat het boekingssysteem nog niet bevestigd is, of (zoals eerder
+ * Racketclub Overhout, tot 5 aug 2026) omdat het systeem wel bevestigd is
+ * maar een ingelogde sessie vereist, wat een normale polling-job niet heeft
+ * (zie PROJECTPLAN.md §7).
  */
 export type PollBron =
   | { type: "meetandplay"; meetAndPlayClubId: string }
@@ -67,6 +68,4 @@ export const POLL_CONFIG: Record<string, PollBron> = {
   wepadel: { type: "playtomic", slug: "wepadel-haarlem", tenantId: "dd28050e-35c4-4bd0-ab58-b2f88111846d" },
   padel25: { type: "playtomic", slug: "indoor-padel25-haarlem", tenantId: "68640cb4-c026-4bb1-8184-6e2cfe0f5ccf" },
   ...FOYS_BRONNEN,
-  // overhout: NIET opgenomen — Baanreserveren vereist een ingelogde sessie
-  // (zie API_REQUIREMENTS.md §4), dus geen simpele publieke poll mogelijk.
 };

@@ -5,27 +5,32 @@ import { MEETANDPLAY_CLUBS } from "./clubs.meetandplay";
 
 // Startregio: Haarlem + 5 km (Velserbroek, Driehuis/Santpoort-Noord)
 // Playtomic tenant_id's zijn geverifieerd via de publieke club-URL (staat
-// letterlijk in de URL-slug, geen devtools nodig). Overhout en Peakz zijn
-// op 23 juli 2026 geverifieerd via live Chrome-inspectie (zie API_REQUIREMENTS.md):
-// Overhout draait op "Baanreserveren" (BR) achter een inlogmuur, Peakz op
-// het "Foys" boekingsplatform met een publiek GET-endpoint.
+// letterlijk in de URL-slug, geen devtools nodig). Peakz is op 23 juli 2026
+// geverifieerd via live Chrome-inspectie (zie API_REQUIREMENTS.md): draait
+// op het "Foys" boekingsplatform met een publiek GET-endpoint.
+//
+// Racketclub Overhout (Baanreserveren) stond hier tot 5 aug 2026 — Xander:
+// "haal overhout uit het systeem, die kan niks voor ons betekenen". Zat
+// sowieso al achter boekbaarZonderLidmaatschap:false verborgen (/reservations
+// vereist inloggen, geen publieke beschikbaarheid) en was de enige club op
+// "Baanreserveren" in de hele lijst — dat boekingssysteem heeft nu dus geen
+// actieve club meer, maar de type/boekingsLink-ondersteuning ervoor blijft
+// gewoon staan voor als er ooit weer een Baanreserveren-club bij komt.
 //
 // COÖRDINATEN (29 juli 2026): opgehaald via de PDOK Locatieserver
-// (api.pdok.nl, geverifieerd live — zie src/lib/geo.ts). Alle acht staan nu
+// (api.pdok.nl, geverifieerd live — zie src/lib/geo.ts). Staan nu allemaal
 // op het middelpunt van hun wóónplaats, niet op hun eigen adres:
 //   Haarlem          POINT(4.64668526 52.38242027)
 //   Velserbroek      POINT(4.6633646  52.43342646)
 //   Santpoort-Noord  POINT(4.6235641  52.43606623)
 // Dat is bewust en expliciet gemarkeerd met coordinaatBron: "woonplaats".
-// Gevolg: de zes Haarlemse clubs liggen op exact hetzelfde punt, dus de
+// Gevolg: de vijf Haarlemse clubs (vier hier + Peakz uit clubs.foys.ts)
+// liggen op exact hetzelfde punt, dus de
 // straal-filter werkt (die kijkt op stadsniveau) maar onderling sorteren op
 // afstand binnen Haarlem zegt nog niets. Alleen WePadel heeft een bevestigd
 // adres (van hun eigen Playtomic-clubpagina, 29 juli 2026); de rest moet nog
 // opgezocht worden voordat coordinaatBron op "adres" kan.
 const HANDMATIGE_CLUBS: Club[] = [
-  // VERBORGEN in de app (boekbaarZonderLidmaatschap: false) — /reservations
-  // redirect naar een inlogscherm, dus zelfs beschikbaarheid is niet publiek.
-  { id: "overhout", naam: "Racketclub Overhout", plaats: "Haarlem", banen: 5, systeem: "Baanreserveren", status: "Bevestigd — overhout.baanreserveren.nl, LET OP: /reservations vereist inloggen (geen publieke beschikbaarheid-view)", boekingsUrl: "https://overhout.baanreserveren.nl/reservations", websiteUrl: "https://www.rcoverhout.nl", lat: 52.38242027, lon: 4.64668526, coordinaatBron: "woonplaats", boekbaarZonderLidmaatschap: false },
   // NIET MEER VERBORGEN (29 juli 2026) — de "ledenstop senioren" bleek alleen
   // over échte clublidmaatschap te gaan: geverifieerd via Playwright dat een
   // niet-lid een baan in het winkelmandje kan leggen en alleen een gratis

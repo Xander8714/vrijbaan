@@ -49,7 +49,7 @@ const STAD_INFO: Record<StadSlug, { naam: string; intro: string }> = {
   haarlem: {
     naam: "Haarlem",
     intro:
-      "Haarlem is waar VrijeBaan is begonnen, en niet toevallig: met WePadel (de grootste outdoor padelclub van Nederland), PADEL25, Schoten, TPV Pim Mulier, Peakz en Racketclub Overhout zit hier een compacte stad met alle vier de grote boekingssystemen tegelijk.",
+      "Haarlem is waar VrijeBaan is begonnen, en niet toevallig: met WePadel (de grootste outdoor padelclub van Nederland), PADEL25, Schoten, TPV Pim Mulier en Peakz zit hier een compacte stad met drie grote boekingssystemen tegelijk.",
   },
   groningen: {
     naam: "Groningen",
