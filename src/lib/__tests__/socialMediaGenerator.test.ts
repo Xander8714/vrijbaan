@@ -133,10 +133,14 @@ describe("socialmedia-generator", () => {
     expect(svg).not.toContain("Club <script>");
   });
 
-  it("plant launchposts 2–5 om de drie dagen in goedkeuringsmodus", () => {
-    expect(LAUNCH_CAMPAGNE.map((post) => post.strategyPosition)).toEqual([2, 3, 4, 5]);
+  it("plant launchposts 2–8 om de drie dagen in goedkeuringsmodus", () => {
+    // 6-8 toegevoegd 5 aug 2026 (Xander: "wees creatiever", geen live-
+    // tijdslot-herhaling meer) — zelfde cadans als 2-5, dus dit is bewust
+    // niet meer hardcoded op precies 4 posts.
+    expect(LAUNCH_CAMPAGNE.map((post) => post.strategyPosition)).toEqual([2, 3, 4, 5, 6, 7, 8]);
     const momenten = LAUNCH_CAMPAGNE.map((post) => new Date(post.scheduledFor).getTime());
-    expect(momenten.slice(1).map((moment, index) => (moment - momenten[index]) / 86_400_000)).toEqual([3, 3, 3]);
+    const tussenpozenInDagen = momenten.slice(1).map((moment, index) => (moment - momenten[index]) / 86_400_000);
+    expect(tussenpozenInDagen.every((dagen) => dagen === 3)).toBe(true);
     expect(LAUNCH_CAMPAGNE.every((post) => post.visual.template === "editorial-carousel-v1")).toBe(true);
   });
 

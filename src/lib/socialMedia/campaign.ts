@@ -83,4 +83,66 @@ export const LAUNCH_CAMPAGNE: LaunchCampagnePost[] = [
       slides: [{ eyebrow: "TESTFASE", lines: [{ text: "Gratis" }, { text: "na registratie.", accent: true }], body: "Radar en Telegram. Geen creditcard. Help VrijeBaan beter te maken.", cta: "Test mee • devrijebaan.nl", motif: "free" }],
     },
   },
+  // Posts 6–8 (5 aug 2026, Xander: "wees creatiever in posts, toon meer
+  // acties van de website, toon iets van de instagram bot (niet de naam)
+  // verzin iets van de werkwijze") — evergreen featurecontent i.p.v. nog een
+  // live-tijdslot-post, zelfde 3-dagen-cadans als 2–5. Geen botnaam genoemd
+  // in post 7, zoals gevraagd — alleen wat het doet, niet welk platform.
+  {
+    strategyPosition: 6,
+    subjectKey: "campaign:launch:6:radar-features",
+    subjectId: "radar-features",
+    contentType: "tip",
+    format: "Carrousel — Radar-features naast zoeken",
+    scheduledFor: "2026-08-19T19:00:00+02:00",
+    hashtags: [...basisHashtags, "padelradar"],
+    caption:
+      "Vrije plek gevonden? Volg de club, en je hoort het automatisch ook de volgende keer. Of stuur 'm meteen door naar je padelmaatje — met één tik.\n\nDe Radar doet meer dan alleen zoeken: volg je favoriete clubs, bewaar je zoekgebied, en deel een vondst met je groep. Alles gratis na registratie, alles op devrijebaan.nl/radar.\n\n#padel #vrijebaan #padelhaarlem #padelradar",
+    visual: {
+      template: "editorial-carousel-v1",
+      accent: "court-ball",
+      slides: [
+        { eyebrow: "VRIJEBAAN • RADAR", lines: [{ text: "Meer dan" }, { text: "alleen zoeken.", accent: true }], body: "Volg clubs, bewaar je zoekgebied, deel met je groep.", motif: "radar" },
+        { eyebrow: "ÉÉN TIK", lines: [{ text: "Volg. Bewaar." }, { text: "Deel.", accent: true }], chips: ["Volg een club", "Bewaar zoekgebied", "Deel met je groep", "Filter op tijd"], cta: "devrijebaan.nl/radar", motif: "radar" },
+      ],
+    },
+  },
+  {
+    strategyPosition: 7,
+    subjectKey: "campaign:launch:7:meldingen",
+    subjectId: "meldingen-2026",
+    contentType: "tip",
+    format: "Carrousel — meldingen, platformnaam bewust weggelaten",
+    scheduledFor: "2026-08-22T19:00:00+02:00",
+    hashtags: [...basisHashtags, "meldingen"],
+    caption:
+      "Geen 5 apps meer opnieuw openen om te checken. Zet meldingen één keer aan via je account, en je hoort het vanzelf zodra er een plek vrijkomt bij een club die je volgt.\n\nClub, tijd, prijs — en een link om meteen te boeken.\n\n#padel #vrijebaan #padelhaarlem #meldingen",
+    visual: {
+      template: "editorial-carousel-v1",
+      accent: "court-ball",
+      slides: [
+        { eyebrow: "ALTIJD OP DE HOOGTE", lines: [{ text: "Jij hoeft het" }, { text: "niet te checken.", accent: true }], body: "Wij checken voor je, en sturen een bericht zodra er plek is.", motif: "telegram" },
+        { eyebrow: "ZO WERKT HET", lines: [{ text: "Eén keer" }, { text: "instellen.", accent: true }], chips: ["Club", "Tijd", "Prijs", "Boek direct"], cta: "Zet aan via je account — 30 sec", motif: "telegram" },
+      ],
+    },
+  },
+  {
+    strategyPosition: 8,
+    subjectKey: "campaign:launch:8:werkwijze",
+    subjectId: "werkwijze-2026",
+    contentType: "spotlight",
+    format: "Carrousel — achter de schermen / werkwijze",
+    scheduledFor: "2026-08-25T19:00:00+02:00",
+    hashtags: [...basisHashtags, "buildinpublic"],
+    caption:
+      "Hoe checken wij dan? Elke paar minuten kijken we live bij tientallen padelclubs tegelijk — via drie verschillende boekingssystemen die normaal niks met elkaar te maken hebben.\n\nZodra er iets verandert dat bij jouw voorkeuren past, weet jij het als eerste. Geen mens die op F5 drukt.\n\n#padel #vrijebaan #padelhaarlem #buildinpublic",
+    visual: {
+      template: "editorial-carousel-v1",
+      accent: "court-ball",
+      slides: [
+        { eyebrow: "ACHTER DE SCHERMEN", lines: [{ text: "Hoe wij" }, { text: "checken.", accent: true }], body: "Live, elke paar minuten, bij tientallen clubs tegelijk.", motif: "builder" },
+        { eyebrow: "ÉÉN PLEK VOOR ALLES", lines: [{ text: "Drie systemen." }, { text: "Eén overzicht.", accent: true }], chips: ["Playtomic", "Meet & Play", "Foys / Peakz"], cta: "Geen mens die op F5 drukt", motif: "builder" },
+      ],
+    },
+  },
 ];
