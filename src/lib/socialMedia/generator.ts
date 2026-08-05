@@ -272,7 +272,13 @@ export function kiesDagelijkseAvondBeschikbaarheid(
   };
 }
 
-export function bouwDagelijkseAvondConcept(kandidaat: DagelijkseAvondKandidaat): GegenereerdConcept {
+export function bouwDagelijkseAvondConcept(
+  kandidaat: DagelijkseAvondKandidaat,
+  correctieSleutel?: string
+): GegenereerdConcept {
+  if (correctieSleutel && !/^[a-z0-9-]{1,40}$/.test(correctieSleutel)) {
+    throw new Error("Correctiesleutel mag alleen kleine letters, cijfers en streepjes bevatten.");
+  }
   const label = datumLabel(kandidaat.datum);
   const hashtags = ["padel", "padelbaan", "vrijebaan", "vanavondpadel", "padelnederland"];
   const stadsRegels = kandidaat.steden
@@ -288,7 +294,7 @@ export function bouwDagelijkseAvondConcept(kandidaat: DagelijkseAvondKandidaat):
   return {
     status: "pending_approval",
     contentType: "availability",
-    subjectKey: `daily-evening:${kandidaat.datum}`,
+    subjectKey: `daily-evening:${kandidaat.datum}${correctieSleutel ? `:${correctieSleutel}` : ""}`,
     subjectType: "national",
     subjectId: "daily-evening",
     city: null,

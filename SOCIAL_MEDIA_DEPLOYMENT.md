@@ -67,7 +67,7 @@ generator publiceert nooit zelfstandig.
 
 ## Reeds uitgevoerde lokale controles
 
-- `npm test`: 10 bestanden, 112 tests geslaagd
+- `npm test`: 10 bestanden, 113 tests geslaagd
 - `npx tsc --noEmit`: geslaagd
 - `npm run lint`: geen fouten; drie reeds bestaande waarschuwingen elders
 - `npm run build`: geslaagd met Next.js 16.2.11

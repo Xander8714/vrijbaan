@@ -215,17 +215,23 @@ export async function genereerEnBewaarTellingConcept(nu: Date = new Date()): Pro
   return id;
 }
 
-export async function genereerConceptVoorbeeldAvond(nu: Date = new Date()): Promise<GegenereerdConcept> {
+export async function genereerConceptVoorbeeldAvond(
+  nu: Date = new Date(),
+  correctieSleutel?: string
+): Promise<GegenereerdConcept> {
   const kandidaten = await haalKandidatenVoorTelling(nu);
   const kandidaat = kiesDagelijkseAvondBeschikbaarheid(kandidaten, isoDatum(nu), nu);
   if (!kandidaat) {
     throw new Error("Nog geen actuele avondbeschikbaarheid in minimaal drie teststeden tussen 17:00 en 21:30.");
   }
-  return bouwDagelijkseAvondConcept(kandidaat);
+  return bouwDagelijkseAvondConcept(kandidaat, correctieSleutel);
 }
 
-export async function genereerEnBewaarAvondConcept(nu: Date = new Date()): Promise<string> {
-  const concept = await genereerConceptVoorbeeldAvond(nu);
+export async function genereerEnBewaarAvondConcept(
+  nu: Date = new Date(),
+  correctieSleutel?: string
+): Promise<string> {
+  const concept = await genereerConceptVoorbeeldAvond(nu, correctieSleutel);
   const id = await bewaarConcept(concept, nu);
   await meldNieuwConceptViaTelegram(id, concept);
   return id;

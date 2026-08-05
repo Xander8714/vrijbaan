@@ -297,4 +297,11 @@ describe("dagelijkse 3-steden-avondpost", () => {
     const metadata = await sharp(jpeg).metadata();
     expect(metadata).toMatchObject({ format: "jpeg", width: 1080, height: 1920 });
   }, 15_000);
+
+  it("kan een gecontroleerde vervangende Story-set voor dezelfde dag maken", () => {
+    const gekozen = kiesDagelijkseAvondBeschikbaarheid(kandidaten, vandaag, nu)!;
+    expect(bouwDagelijkseAvondConcept(gekozen, "spellingfix-1").subjectKey)
+      .toBe(`daily-evening:${vandaag}:spellingfix-1`);
+    expect(() => bouwDagelijkseAvondConcept(gekozen, "ONGELDIG!")).toThrow(/correctiesleutel/i);
+  });
 });

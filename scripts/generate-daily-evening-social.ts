@@ -12,8 +12,11 @@ import {
 loadEnvConfig(process.cwd());
 
 async function main(): Promise<void> {
+  const correctieArgument = process.argv.find((argument) => argument.startsWith("--correctie="));
+  const correctieSleutel = correctieArgument?.slice("--correctie=".length) || undefined;
+
   if (process.argv.includes("--dry-run")) {
-    const concept = await genereerConceptVoorbeeldAvond();
+    const concept = await genereerConceptVoorbeeldAvond(new Date(), correctieSleutel);
     console.log(JSON.stringify({
       dryRun: true,
       subjectKey: concept.subjectKey,
@@ -24,7 +27,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    const id = await genereerEnBewaarAvondConcept();
+    const id = await genereerEnBewaarAvondConcept(new Date(), correctieSleutel);
     console.log(`Dagelijkse 3-stedenstories aangemaakt: ${id} (wachten op goedkeuring).`);
   } catch (fout) {
     const bericht = fout instanceof Error ? fout.message : String(fout);
