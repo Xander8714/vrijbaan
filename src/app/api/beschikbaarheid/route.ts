@@ -86,6 +86,61 @@ const CACHE_TTL_MS = 90_000;
 const cache = new Map<string, { sloten: Slot[]; verlooptOp: number }>();
 
 /**
+ * Rate limiting per IP-adres (5 aug 2026, security-assessment: deze route had
+ * geen enkele grens op hoe vaak 'm aangeroepen wordt — alleen MAX_CLUBS
+ * beperkt de omvang van ÉÉN verzoek. Herhaald aanroepen met steeds andere
+ * club-combinaties (of gewoon snel achter elkaar) omzeilt de 90s-cache
+ * volledig en triggert bij elke miss een live Playwright-scrape per club.
+ * Deze repo heeft dat al eens echt meegemaakt: discover-playtomic-clubs.ts's
+ * docstring noemt een tijdelijke 403 van Playtomic na herhaald scrapen — bij
+ * misbruik van déze route loopt de hele site (voor IEDEREEN) dat risico, niet
+ * alleen de aanvaller zelf.
+ *
+ * Bewust per IP, niet één gedeelde teller voor de hele site — anders zou één
+ * drukke of kwaadwillende gebruiker de Radar voor alle andere gelijktijdige
+ * bezoekers kunnen blokkeren. Simpele in-memory Map, zelfde patroon en
+ * zelfde aanname als de cache hierboven: veilig zolang dit als één
+ * langlevende systemd-service draait (niet in kortstondige serverless
+ * functies zonder gedeeld geheugen).
+ */
+export const RATE_LIMIT_VENSTER_MS = 60_000;
+export const RATE_LIMIT_MAX_VERZOEKEN = 20; // ruim genoeg voor normaal Radar-gebruik (een handvol zoekopdrachten per minuut)
+const rateLimiter = new Map<string, { aantal: number; resetOp: number }>();
+
+/** Voorkomt dat de Map onbegrensd blijft groeien met IP's die allang niet meer terugkomen. */
+function ruimVerlopenRateLimietenOp(nu: number): void {
+  for (const [ip, status] of rateLimiter) {
+    if (status.resetOp <= nu) rateLimiter.delete(ip);
+  }
+}
+
+function clientIp(request: NextRequest): string {
+  // Achter nginx (zie scripts/deploy-vps.sh) zet de reverse proxy dit header
+  // — een eigen IP-adres op de standalone Next.js-server zelf is altijd
+  // 127.0.0.1 en dus onbruikbaar om aanvragers te onderscheiden.
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return request.headers.get("x-real-ip") ?? "onbekend";
+}
+
+// `nu` als parameter (i.p.v. altijd Date.now() intern) — zelfde patroon als
+// kiesRotatieBatch/kiesInteressantsteBeschikbaarheid elders in de repo,
+// zodat tests het tijdvenster kunnen laten verstrijken zonder echt te
+// wachten of Date te mocken.
+export function magDoor(ip: string, nu: number = Date.now()): boolean {
+  if (rateLimiter.size > 1000) ruimVerlopenRateLimietenOp(nu);
+
+  const bestaand = rateLimiter.get(ip);
+  if (!bestaand || bestaand.resetOp <= nu) {
+    rateLimiter.set(ip, { aantal: 1, resetOp: nu + RATE_LIMIT_VENSTER_MS });
+    return true;
+  }
+  if (bestaand.aantal >= RATE_LIMIT_MAX_VERZOEKEN) return false;
+  bestaand.aantal += 1;
+  return true;
+}
+
+/**
  * `club_beschikbaarheid` wordt al elke 5 minuten ververst door
  * scripts/poll-availability.ts voor elke gevolgde club — maar deze route
  * keek daar tot 4 aug 2026 nooit naar en scraapte altijd opnieuw live, ook
@@ -222,6 +277,13 @@ async function inBatches(clubIds: string[], datum: string): Promise<ClubBeschikb
 }
 
 export async function GET(request: NextRequest) {
+  if (!magDoor(clientIp(request), Date.now())) {
+    return NextResponse.json(
+      { error: "Te veel verzoeken. Wacht een minuut en probeer het opnieuw." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
+  }
+
   const clubsParam = request.nextUrl.searchParams.get("clubs") ?? "";
   const datum = request.nextUrl.searchParams.get("datum") ?? "";
 
