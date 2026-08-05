@@ -27,7 +27,7 @@
  * Handmatig draaien: npx tsx scripts/ververs-clubdata.ts
  */
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, unlinkSync } from "fs";
 import { stuurTelegramBericht } from "../src/lib/telegram";
 
 type Bron = { naam: string; commando: string; pad: string };
@@ -117,7 +117,17 @@ async function main(): Promise<void> {
     wijzigingen.join("\n") || "Kleine wijzigingen zonder aantalverschil (bv. gewijzigde banen/adres)."
   }`;
   run(`git add ${CLUBDATA_PADEN}`);
-  run(`git commit -m ${JSON.stringify(commitBoodschap)}`);
+  // Bewust -F <bestand> i.p.v. -m "<JSON.stringify(...)>": dat laatste zag
+  // er onschuldig uit maar JSON.stringify escapet een echte newline naar de
+  // twee tekens \ en n, en een shell interpreteert \n binnen dubbele
+  // aanhalingstekens niet als newline — het commit-bericht kreeg daardoor
+  // letterlijk "\n\n" te zien i.p.v. een regeleinde (ontdekt 5 aug 2026,
+  // zichtbaar in de eerste echte automatische commit). -F leest het
+  // bestand rauw in, geen shell-quoting nodig.
+  const commitBoodschapPad = ".git/VERVERS_CLUBDATA_COMMIT_MSG.txt";
+  writeFileSync(commitBoodschapPad, commitBoodschap, "utf8");
+  run(`git commit -F ${commitBoodschapPad}`);
+  try { unlinkSync(commitBoodschapPad); } catch {}
   // Bewust een apart remote voor de push, niet "origin" — origin blijft op
   // anonieme HTTPS staan (nodig voor "git pull" in scripts/deploy-vps.sh,
   // dat moet altijd blijven werken, ook los van deze deploy key). Pushen
