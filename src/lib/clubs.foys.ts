@@ -1,7 +1,7 @@
 // AUTOMATISCH GEGENEREERD — niet met de hand aanpassen.
 // Bron: Foys API /court-booking/public/api/v1/locations (zie src/lib/scrapers/foys.ts).
 // Opnieuw genereren met: npm run import:foys
-// Laatst gegenereerd: 2026-07-29 — 26 Peakz-vestigingen.
+// Laatst gegenereerd: 2026-08-05 — 26 Peakz-vestigingen.
 //
 // Coördinaten komen uit de API zelf en horen bij het clubadres, dus
 // coordinaatBron is hier "adres" (nauwkeuriger dan de handmatige Haarlemse
