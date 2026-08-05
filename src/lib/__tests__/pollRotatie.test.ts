@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { kiesRotatieBatch, ROTATIE_GROOTTE, ROTATIE_BLOK_MINUTEN } from "../../../scripts/poll-availability";
+import {
+  bouwOntvangersPerClub,
+  kiesRotatieBatch,
+  ROTATIE_GROOTTE,
+  ROTATIE_BLOK_MINUTEN,
+} from "../../../scripts/poll-availability";
 
 describe("kiesRotatieBatch", () => {
   it("geeft een lege lijst bij geen niet-gevolgde clubs", () => {
@@ -52,5 +57,55 @@ describe("kiesRotatieBatch", () => {
       kiesRotatieBatch(clubs, new Date(start + blok * ROTATIE_BLOK_MINUTEN * 60 * 1000)).forEach((id) => geziene.add(id));
     }
     clubs.forEach((id) => expect(geziene).toContain(id));
+  });
+});
+
+describe("bouwOntvangersPerClub", () => {
+  const clubs = [
+    { id: "haarlem", lat: 52.3874, lon: 4.6462 },
+    { id: "beuningen", lat: 51.8505, lon: 5.7530 },
+  ];
+  const basisProfiel = {
+    id: "gebruiker-1",
+    chatId: 123,
+    voorkeurstijd: null,
+    lat: null,
+    lon: null,
+    straalKm: 10,
+  };
+
+  it("stuurt niets zonder favorieten en zonder complete regio", () => {
+    expect(bouwOntvangersPerClub([basisProfiel], [], clubs).size).toBe(0);
+  });
+
+  it("neemt een favoriete club mee, ook zonder regio", () => {
+    const kaart = bouwOntvangersPerClub(
+      [basisProfiel],
+      [{ userId: basisProfiel.id, clubId: "beuningen" }],
+      clubs
+    );
+    expect([...kaart.keys()]).toEqual(["beuningen"]);
+  });
+
+  it("neemt alleen clubs binnen een complete regio en straal mee", () => {
+    const kaart = bouwOntvangersPerClub(
+      [{ ...basisProfiel, lat: 52.3874, lon: 4.6462, straalKm: 10 }],
+      [],
+      clubs
+    );
+    expect([...kaart.keys()]).toEqual(["haarlem"]);
+  });
+
+  it("combineert favorieten buiten de regio met clubs binnen de regio zonder dubbelen", () => {
+    const kaart = bouwOntvangersPerClub(
+      [{ ...basisProfiel, lat: 52.3874, lon: 4.6462, straalKm: 10 }],
+      [
+        { userId: basisProfiel.id, clubId: "haarlem" },
+        { userId: basisProfiel.id, clubId: "beuningen" },
+      ],
+      clubs
+    );
+    expect(new Set(kaart.keys())).toEqual(new Set(["haarlem", "beuningen"]));
+    expect(kaart.get("haarlem")).toHaveLength(1);
   });
 });

@@ -115,9 +115,9 @@ export default function TelegramPage() {
         <p className="mt-3 text-sm text-slate-600">
           Daarnaast krijg je automatisch een melding zodra er een nieuwe plek vrijkomt bij een club die je op de{" "}
           <Link href="/radar" className="text-court-700 underline">Radar</Link>{" "}
-          volgt (&quot;Volg deze club&quot;) — en dan alleen als het nieuwe slot in de buurt van je voorkeurstijd
-          valt (geen voorkeurstijd ingesteld? dan telt elk nieuw slot bij die club). Clubs die je niet volgt leveren
-          nooit een melding op, ook niet als ze in je buurt liggen.
+          volgt (&quot;Volg deze club&quot;), of bij een club binnen de locatie en zoekstraal die je in je account hebt
+          opgeslagen. Zonder favoriete clubs én zonder complete regio krijg je geen beschikbaarheidsmeldingen.
+          Heb je een voorkeurstijd ingesteld, dan moet het nieuwe slot daar ook bij in de buurt vallen.
         </p>
       </section>
 

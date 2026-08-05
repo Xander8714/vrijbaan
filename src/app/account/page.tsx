@@ -74,6 +74,14 @@ export default async function AccountPage({
   };
 
   const volledigeNaam = [profiel.voornaam, profiel.achternaam].filter(Boolean).join(" ");
+  const regioCompleet = profiel.lat !== null && profiel.lon !== null;
+  const meldingsUitleg = favorieteClubs.length > 0 && regioCompleet
+    ? `Actief voor ${favorieteClubs.length} favoriete club${favorieteClubs.length === 1 ? "" : "s"} en clubs binnen ${profiel.zoekstraalKm} km rond ${profiel.woonplaats ?? "je gekozen locatie"}.`
+    : favorieteClubs.length > 0
+      ? `Actief voor ${favorieteClubs.length} favoriete club${favorieteClubs.length === 1 ? "" : "s"}.`
+      : regioCompleet
+        ? `Actief voor clubs binnen ${profiel.zoekstraalKm} km rond ${profiel.woonplaats ?? "je gekozen locatie"}.`
+        : "Nog niet actief: kies een favoriete club in de Radar of sla hieronder een locatie met zoekstraal op.";
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -110,6 +118,15 @@ export default async function AccountPage({
         <TelegramKoppelen userId={user.id} beginChatId={rij?.telegram_chat_id ?? null} heeftTelefoon={!!rij?.telefoon} />
       </div>
 
+      <section className="mt-6 rounded-lg border border-court-200 bg-court-50 p-4">
+        <h2 className="font-semibold text-court-900">Wanneer krijg je beschikbaarheidsmeldingen?</h2>
+        <p className="mt-1 text-sm text-court-900">
+          Alleen voor clubs die je als favoriet volgt, of voor clubs binnen je opgeslagen regio en zoekstraal.
+          Zonder favorieten én zonder complete regio sturen we geen beschikbaarheidsberichten.
+        </p>
+        <p className="mt-2 text-sm font-medium text-court-900">{meldingsUitleg}</p>
+      </section>
+
       <ProfielFormulier userId={user.id} email={user.email ?? ""} beginProfiel={profiel} />
 
       <div className="mt-6">
@@ -117,8 +134,8 @@ export default async function AccountPage({
       </div>
 
       <p className="mt-8 text-xs text-slate-400">
-        Je adres wordt alleen gebruikt om clubs binnen je zoekstraal te vinden. Wil je dat niet, laat de
-        locatievelden dan leeg — de Radar toont dan gewoon alle clubs.
+        Je locatie wordt alleen gebruikt om clubs binnen je zoekstraal te vinden en je daarover meldingen te sturen.
+        Laat je de locatie leeg en volg je geen favoriete club, dan ontvang je geen beschikbaarheidsmeldingen.
       </p>
     </main>
   );
