@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   bevatVerbodenActie,
   extraheerFlexibeleTijd,
@@ -8,8 +8,11 @@ import {
   parseAdhocZoekopdracht,
   parseProfielWijzigingen,
   parseVastMomentOpdracht,
+  zoekBeschikbaarheidVoorChat,
 } from "../telegramConversatie";
 import { MAX_DAGEN_VOORUIT_ZOEKEN } from "../tijd";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("extraheerFlexibeleTijd", () => {
   it("herkent compacte 3- en 4-cijferige tijden", () => {
@@ -165,5 +168,52 @@ describe("parseVastMomentOpdracht", () => {
 
   it("geeft null zonder weekdag", () => {
     expect(parseVastMomentOpdracht("zet een vast moment om 20:00")).toBeNull();
+  });
+});
+
+describe("zoekBeschikbaarheidVoorChat", () => {
+  it("stuurt ook een normale zoekopdracht in API-reeksen van maximaal vier clubs", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const ids = (url.searchParams.get("clubs") ?? "").split(",").filter(Boolean);
+      expect(ids.length).toBeLessThanOrEqual(4);
+      return Response.json({
+        beschikbaarheid: ids.map((clubId) => ({ clubId, sloten: [] })),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await zoekBeschikbaarheidVoorChat(
+      { lat: 52.38242027, lon: 4.64668526 },
+      "Haarlem",
+      null,
+      "https://example.test",
+      0
+    );
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("beperkt een zoekopdracht verder vooruit tot één reeks van vier clubs", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const ids = (url.searchParams.get("clubs") ?? "").split(",").filter(Boolean);
+      return Response.json({
+        beschikbaarheid: ids.map((clubId) => ({ clubId, sloten: [] })),
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await zoekBeschikbaarheidVoorChat(
+      { lat: 52.38242027, lon: 4.64668526 },
+      "Haarlem",
+      null,
+      "https://example.test",
+      7
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect((url.searchParams.get("clubs") ?? "").split(",")).toHaveLength(4);
   });
 });

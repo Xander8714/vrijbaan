@@ -31,6 +31,7 @@ import { CLUBS } from "./clubs";
 import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie } from "./geo";
 import { binnenTijdvenster, dagLabel, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "./tijd";
 import { bouwSessieLink, maakInlogToken } from "./telegramSessie";
+import { MAX_CLUBS_VER_VOORUIT } from "./radarSelectie";
 
 const STRAAL_ADHOC_KM = 10;
 // Zelfde soort grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts,
@@ -38,6 +39,7 @@ const STRAAL_ADHOC_KM = 10;
 // elke Playtomic/Meet & Play-club in de lijst kost een aparte Playwright-run.
 const MAX_CLUBS_ADHOC = 12;
 const MAX_CLUBS_IN_BERICHT = 6;
+const API_BATCH_GROOTTE = 4;
 const MARGE_UREN_ADHOC = 2;
 
 // Zelfde grens als de Radar-pagina's straal-slider (min=1, max=25) — de
@@ -272,12 +274,14 @@ export async function zoekBeschikbaarheidVoorChat(
   // sowieso zonder account.
   sessieBrug: { admin: SupabaseClient; profielId: string } | null = null
 ): Promise<string> {
-  const inStraal = binnenStraal(CLUBS, coord, STRAAL_ADHOC_KM).slice(0, MAX_CLUBS_ADHOC);
+  const alleClubsInStraal = binnenStraal(CLUBS, coord, STRAAL_ADHOC_KM);
+  const { datum, dagOffset } = kiesZoekdatum(dagOffsetUitTekst);
+  const maxClubs = dagOffset > 2 ? MAX_CLUBS_VER_VOORUIT : MAX_CLUBS_ADHOC;
+  const inStraal = alleClubsInStraal.slice(0, maxClubs);
   if (inStraal.length === 0) {
     return `Ik ken geen padelclubs binnen ${STRAAL_ADHOC_KM} km van ${plaatsnaam}.`;
   }
 
-  const { datum, dagOffset } = kiesZoekdatum(dagOffsetUitTekst);
   const ids = inStraal.map((c) => c.id);
   const linkParams = new URLSearchParams({
     lat: String(coord.lat),
@@ -303,20 +307,24 @@ export async function zoekBeschikbaarheidVoorChat(
     }
   }
 
-  let data: { beschikbaarheid: BeschikbaarheidRij[] };
+  const beschikbaarheid: BeschikbaarheidRij[] = [];
   try {
-    const res = await fetch(
-      `${siteUrl}/api/beschikbaarheid?datum=${datum}&clubs=${encodeURIComponent(ids.join(","))}`
-    );
-    if (!res.ok) throw new Error(`beschikbaarheid gaf ${res.status}`);
-    data = await res.json();
+    for (let i = 0; i < ids.length; i += API_BATCH_GROOTTE) {
+      const batchIds = ids.slice(i, i + API_BATCH_GROOTTE);
+      const res = await fetch(
+        `${siteUrl}/api/beschikbaarheid?datum=${datum}&clubs=${encodeURIComponent(batchIds.join(","))}`
+      );
+      if (!res.ok) throw new Error(`beschikbaarheid gaf ${res.status}`);
+      const batch = await res.json() as { beschikbaarheid: BeschikbaarheidRij[] };
+      beschikbaarheid.push(...batch.beschikbaarheid);
+    }
   } catch {
     return (
       `Live beschikbaarheid ophalen lukte nu niet. Bekijk het zelf op de Radar:\n\n${radarLink}`
     );
   }
 
-  const perClub = new Map(data.beschikbaarheid.map((r) => [r.clubId, r]));
+  const perClub = new Map(beschikbaarheid.map((r) => [r.clubId, r]));
   const regels: string[] = [];
   for (const club of inStraal) {
     const rij = perClub.get(club.id);

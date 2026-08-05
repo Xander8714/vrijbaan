@@ -5,9 +5,10 @@ import { CLUBS, LEDEN_CLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
-import { begrensZoekstraalVoorDatum, binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import { leesJsonRespons } from "@/lib/jsonResponse";
+import { maakRadarSelectie } from "@/lib/radarSelectie";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
 
@@ -25,10 +26,6 @@ const GRATIS_LIMIET = 1;
 const OPSLAG_SLEUTEL = "vrijbaan-zoekgebied";
 const MARGE_OPTIES = [1, 2, 3];
 
-// Totaal aantal clubs dat één zoekactie mag tonen. De API wordt hieronder in
-// kleinere reeksen aangeroepen, zodat elke losse aanvraag onder de proxytimeout
-// blijft en resultaten geleidelijk binnenkomen.
-const MAX_ZICHTBAAR = 20;
 const API_BATCH_GROOTTE = 4;
 
 type Slot = { tijd: string; prijs: string | null };
@@ -283,51 +280,37 @@ export default function RadarPage() {
     [isPro]
   );
 
-  const straalVoorDatum = begrensZoekstraalVoorDatum(straalKm, gekozenDatum);
-  const straalBegrensdVoorDatum = straalVoorDatum < straalKm;
-
   /**
-   * Op afstand filteren. Dit bepaalt óók welke clubs we live opvragen, dus het
-   * moet vóór dat effect staan.
-   *
-   * Gevolgde clubs vallen NOOIT buiten dit filter, ook al liggen ze verder
-   * dan de ingestelde straal — Xander (3 aug 2026): "gevolgde clubs altijd
-   * tonen". Een club volgen is een expliciete keuze; die verliezen zodra je
-   * straal toevallig kleiner staat zou een melding op de Radar onvindbaar
-   * maken.
+   * Bereken eerst alle afstanden. De selectie hieronder beslist daarna welke
+   * clubs werkelijk binnen het actieve zoekgebied vallen en live worden
+   * opgevraagd. Een favoriet in een andere regio hoort niet bij deze zoekactie.
    */
-  const clubsInStraal = useMemo(() => {
+  const clubsMetAfstand = useMemo(() => {
     if (!zoekgebied) return kandidaatClubs.map((club) => ({ ...club, afstandKm: null as number | null }));
     return kandidaatClubs
       .map((club) => ({ ...club, afstandKm: afgerondeAfstand({ lat: zoekgebied.lat, lon: zoekgebied.lon }, club) }))
-      .filter((club) => club.afstandKm <= straalVoorDatum || gevolgd.has(club.id))
       .sort((a, b) => a.afstandKm - b.afstandKm);
-  }, [kandidaatClubs, zoekgebied, straalVoorDatum, gevolgd]);
+  }, [kandidaatClubs, zoekgebied]);
 
   /**
-   * Zitten er meer dan MAX_ZICHTBAAR clubs in de gekozen straal, dan versmallen
-   * we automatisch naar de dichtstbijzijnde MAX_ZICHTBAAR i.p.v. de gebruiker
-   * te vragen zelf de straal te verlagen — Xander (4 aug 2026): "dat je het
-   * zoekgebied net zo klein instelt als max 20 clubs in de omgeving, als er
-   * dan minder zijn toon je wel alles". Gevolgde clubs gaan altijd mee (zie
-   * de toelichting bij clubsInStraal hierboven), ook als dat betekent dat er
-   * voor de "overige" clubs minder dan MAX_ZICHTBAAR ruimte overblijft.
-   * clubsInStraal ligt al gesorteerd op afstand, dus de eerste N niet-
-   * gevolgde clubs zijn meteen de dichtstbijzijnde.
+   * Vandaag t/m overmorgen kan de normale cache maximaal twintig clubs snel
+   * bedienen. Verder vooruit ontbreekt die cache meestal: dan houden we de
+   * volledige gekozen straal aan, maar vragen we maximaal vier relevante
+   * clubs op. Zo behoudt een dunbevolkte regio zijn bereik, terwijl een stad
+   * niet meerdere trage browsergolven nodig heeft.
    */
-  const teVeelInStraal = clubsInStraal.length > MAX_ZICHTBAAR;
-  const clubsOmTeTonen = useMemo(() => {
-    if (!teVeelInStraal) return clubsInStraal;
-    const gevolgdeInStraal = clubsInStraal.filter((c) => gevolgd.has(c.id));
-    const overigeInStraal = clubsInStraal.filter((c) => !gevolgd.has(c.id));
-    return [...gevolgdeInStraal, ...overigeInStraal].slice(0, MAX_ZICHTBAAR);
-  }, [clubsInStraal, teVeelInStraal, gevolgd]);
-  // Straal die daadwerkelijk gebruikt is na het versmallen — alleen over de
-  // niet-gevolgde clubs, want gevolgde clubs mogen buiten dat bereik liggen
-  // zonder de gemelde straal op te rekken.
-  const effectieveStraalKm = teVeelInStraal
-    ? Math.round(Math.max(0, ...clubsOmTeTonen.filter((c) => !gevolgd.has(c.id)).map((c) => c.afstandKm ?? 0)))
-    : straalVoorDatum;
+  const radarSelectie = useMemo(
+    () => maakRadarSelectie(clubsMetAfstand, straalKm, gevolgd, gekozenDatum),
+    [clubsMetAfstand, straalKm, gevolgd, gekozenDatum]
+  );
+  const {
+    clubsBinnenStraal: clubsInStraal,
+    clubsOmTeTonen,
+    maximum: maxZichtbaar,
+    begrensd: teVeelInStraal,
+    verVooruit,
+    effectieveStraalKm,
+  } = radarSelectie;
 
   /**
    * Beschikbaarheid halen we op voor precies clubsOmTeTonen, niet voor alle
@@ -848,10 +831,10 @@ export default function RadarPage() {
           ))}
         </div>
 
-        {straalBegrensdVoorDatum && (
+        {verVooruit && (
           <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Voor een datum verder dan drie dagen zoekt de Radar maximaal {straalVoorDatum} km rondom je locatie.
-            Zo blijft live ophalen betrouwbaar; je opgeslagen straal van {straalKm} km verandert niet.
+            Verder vooruit zoekt de Radar binnen je volledige straal van {straalKm} km bij maximaal vier relevante clubs.
+            Zijn er minder clubs in je regio, dan gebruiken we gewoon de hele straal. Favorieten buiten dit zoekgebied tellen niet mee.
           </p>
         )}
 
@@ -972,13 +955,13 @@ export default function RadarPage() {
             {zichtbareClubs.length} {zichtbareClubs.length === 1 ? "club" : "clubs"} binnen {straalKm} km
           </h2>
 
-          {/* Automatisch versmald naar de dichtstbijzijnde MAX_ZICHTBAAR i.p.v.
+          {/* Automatisch versmald naar het datumafhankelijke maximum i.p.v.
               een vraag om zelf de straal te verlagen — zie de toelichting bij
               clubsOmTeTonen hierboven. */}
           {teVeelInStraal && (
             <div className="mt-3 rounded-md bg-court-50 px-4 py-3 text-sm text-court-900">
-              Er zijn {clubsInStraal.length} clubs binnen {straalKm} km — we tonen de {MAX_ZICHTBAAR} dichtstbijzijnde
-              (tot ongeveer {effectieveStraalKm} km). Zet de straal lager voor een preciezere selectie.
+              Er zijn {clubsInStraal.length} clubs binnen {straalKm} km — we doorzoeken nu {maxZichtbaar} relevante clubs
+              (tot ongeveer {effectieveStraalKm} km) om de wachttijd betrouwbaar te houden.
             </div>
           )}
 
@@ -1036,7 +1019,7 @@ export default function RadarPage() {
       ) : (
         // Zonder zoekgebied zijn "alle 514 clubs" kandidaat (clubsInStraal
         // filtert dan niets weg) — die allemaal als kaart renderen terwijl er
-        // toch nooit beschikbaarheid voor opgehaald wordt (MAX_ZICHTBAAR
+        // toch nooit beschikbaarheid voor opgehaald wordt (maxZichtbaar
         // houdt dat al tegen) is alleen maar een trage, lege lijst. Xander
         // (4 aug 2026): "hoef je niet 514 clubs op te halen als je
         // uitgelogd bent... toon zoiets van een melding" — dus i.p.v. de

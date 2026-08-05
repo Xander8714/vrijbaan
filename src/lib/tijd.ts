@@ -53,22 +53,6 @@ export const DAGEN_VOORUIT = 7;
  */
 export const MAX_DAGEN_VOORUIT_ZOEKEN = 14;
 
-// De achtergrondpoller heeft alleen voor vandaag + 2 dagen een verse
-// databasecache. Verder vooruit moet de Radar live scrapen; daarom begrenzen
-// we daar de straal om een lange reeks browser-scrapes te voorkomen.
-export const MAX_STRAAL_VER_VOORUIT_KM = 5;
-const CACHE_VENSTER_DAGEN = 3;
-
-export function begrensZoekstraalVoorDatum(
-  straalKm: number,
-  datum: string,
-  vanaf: Date = new Date()
-): number {
-  return komendeDagen(CACHE_VENSTER_DAGEN, vanaf).includes(datum)
-    ? straalKm
-    : Math.min(straalKm, MAX_STRAAL_VER_VOORUIT_KM);
-}
-
 const TIJD_RE = /^(\d{1,2}):(\d{2})$/;
 
 /** "19:00" → 1140 minuten na middernacht. null bij een ongeldige tijd. */
