@@ -943,4 +943,43 @@ alleen als het nieuwe slot binnen de tijdsmarge van diens voorkeurstijd
 valt (geen voorkeurstijd ingesteld = geen tijdsfilter). `haalGebiedProfielen`/
 `clubsInGebied` zijn verwijderd; de te pollen clubselectie is weer
 "gevolgd + rotatiebatch" zonder gebied-uitbreiding. De uitleg op
-`/telegram` (sectie 3) is bijgewerkt om dit correct te beschrijven.
+`/telegram` (destijds sectie 3, sinds de uitbreiding van 5 aug 2026 hieronder
+sectie 4) is bijgewerkt om dit correct te beschrijven.
+
+## 13. Telegram-bot: profielwijzigingen en vaste speelmomenten via chat (5 aug 2026)
+
+**Uitbreiding (5 aug 2026)**, n.a.v. Xander: "ik kon er niet goed tegen
+praten" — de bot kon tot nu toe alleen onboarden en losse zoekopdrachten
+beantwoorden; straal, tijd, locatie en vaste speelmomenten moesten via de
+Account-pagina. Toegevoegd aan
+[telegramConversatie.ts](../src/lib/telegramConversatie.ts) en
+[webhook/route.ts](../src/app/api/telegram/webhook/route.ts):
+
+- Straal/tijd/locatie wijzigen via vrije tekst, ook meerdere tegelijk in één
+  bericht ("maak straal 5 km en zet mijn tijd op 2000"); tijd nu flexibel
+  (2000, 830, 8, 20:00, "om 20") i.p.v. alleen HH:MM.
+- "Favoriete dagen" uit het oorspronkelijke ideeën-document bleek niet te
+  passen op een losse kolom (die bestaat niet) maar wél op de bestaande
+  tabel `vaste_speelmomenten` (dag+tijd samen, migratie van 3 aug 2026) — dus
+  gekoppeld dááraan i.p.v. een nieuwe, ongebruikte kolom toe te voegen. Zie
+  `parseVastMomentOpdracht`/`pasVasteMomentToe`.
+- `/help`, `/status`, `/annuleer` + natuurlijke varianten, en een blokkade
+  van gevoelige accountacties (telefoonnummer, account verwijderen,
+  rol/rechten) — die blijven bewust uitsluitend via de Account-pagina lopen.
+- Nieuwe onboarding-stap `wacht_locatie_profiel` (migratie
+  `2026-08-05-telegram-profielwijzigingen-via-chat.sql`, **toegepast op
+  Supabase via `apply_migration` op 5 aug 2026** — de check-constraint op
+  `telegram_onboarding_stap` bevat `wacht_locatie_profiel` nu bevestigd, zie
+  `pg_get_constraintdef`) voor locatie wijzigen buiten onboarding om, met
+  dezelfde inline-keuzeknoppen.
+- **Regressie ontdekt en gefixt tijdens het bouwen**: een eerste versie
+  herkende kale "om"/"rond" als signaal voor een tijd-wijziging, wat een
+  losse zoekopdracht als "zoek een baan in Haarlem rond 20:00" zou hebben
+  laten doorgaan voor "zet mijn voorkeurstijd op 20:00" — de tijd-context
+  vereist nu een expliciet "tijd"/"voorkeurstijd"-signaal. Vastgelegd in
+  [telegramConversatie.test.ts](../src/lib/__tests__/telegramConversatie.test.ts).
+- Getest: `npm test` (81/81), `npm run lint` en `npx tsc --noEmit` schoon.
+  **Niet getest**: een echt Telegram-gesprek tegen een live bot/Supabase (
+  geen bot-token/credentials in deze sessie) — zie de tester-skill-conventie
+  hierover.
+- `/telegram`-pagina bijgewerkt met de nieuwe mogelijkheden (secties 3-5).

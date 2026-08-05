@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { stuurTelegramBericht } from "@/lib/telegram";
 import {
+  bevatVerbodenActie,
   bouwLocatieKeyboard,
-  extraheerTijd,
+  extraheerFlexibeleTijd,
+  formatteerVastMoment,
   parseAdhocZoekopdracht,
+  parseProfielWijzigingen,
+  parseVastMomentOpdracht,
+  pasVasteMomentToe,
+  type ParseResultaat,
   zoekBeschikbaarheidVoorChat,
   zoekLocatieKandidaten,
 } from "@/lib/telegramConversatie";
@@ -19,6 +25,12 @@ import type { GevondenLocatie } from "@/lib/geo";
  *   telegram_onboarding_stap in profiles en src/lib/telegramConversatie.ts.
  * - Losse zoekopdrachten in vrije tekst ("zoek een baan in Haarlem rond
  *   20:00") wanneer er geen actief gesprek loopt.
+ * - Profiel aanpassen via vrije tekst buiten onboarding om (5 aug 2026):
+ *   straal, tijd, locatie en vaste speelmomenten (dag+tijd), plus /help,
+ *   /status, /annuleer en een blokkade van gevoelige accountacties
+ *   (telefoonnummer, account verwijderen) — zie telegramConversatie.ts voor
+ *   de parsers en waarom "favoriete dagen" op vaste_speelmomenten aansluit
+ *   i.p.v. een nieuwe kolom.
  *
  * BEVEILIGING: Telegram stuurt de secret die bij setWebhook is opgegeven mee
  * in de X-Telegram-Bot-Api-Secret-Token header. Zonder die check zou iedereen
@@ -42,8 +54,41 @@ type TelegramUpdate = {
   callback_query?: { id: string; data?: string; message?: { chat: { id: number } } };
 };
 
+type TelegramStap =
+  | "wacht_locatie_onboarding"
+  | "wacht_tijd_onboarding"
+  | "wacht_locatie_adhoc"
+  | "wacht_locatie_profiel"
+  | null;
+
 type TelegramKandidaten = { kandidaten: GevondenLocatie[]; tijd?: string | null; dagOffset?: number | null };
 type Admin = ReturnType<typeof supabaseAdmin>;
+
+// Volledig profiel zoals de bot het nodig heeft — één select i.p.v. de
+// eerdere twee losse (één voor callback_query, één voor tekstberichten) die
+// niet dezelfde velden ophaalden, waardoor /status en profielwijzigingen
+// eerst een extra query nodig hadden.
+type ProfielRij = {
+  id: string;
+  telegram_onboarding_stap: TelegramStap;
+  telegram_kandidaten?: TelegramKandidaten | null;
+  woonplaats?: string | null;
+  zoekstraal_km?: number | null;
+  voorkeurstijd?: string | null;
+};
+
+async function haalProfielOp(admin: Admin, chatId: number): Promise<ProfielRij | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, telegram_onboarding_stap, telegram_kandidaten, woonplaats, zoekstraal_km, voorkeurstijd")
+    .eq("telegram_chat_id", chatId)
+    .maybeSingle();
+  if (error) {
+    console.error("[telegram] Profiel ophalen mislukt:", error.message);
+    return null;
+  }
+  return data as ProfielRij | null;
+}
 
 async function stuurLocatieKeuze(chatId: number, tekst: string, kandidaten: GevondenLocatie[]) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -73,7 +118,7 @@ async function vraagLocatieKeuze(
   profielId: string,
   chatId: number,
   plaatsQuery: string,
-  stap: "wacht_locatie_onboarding" | "wacht_locatie_adhoc",
+  stap: "wacht_locatie_onboarding" | "wacht_locatie_adhoc" | "wacht_locatie_profiel",
   tijdVoorAdhoc: string | null,
   dagOffsetVoorAdhoc: number | null = null
 ): Promise<void> {
@@ -99,6 +144,106 @@ async function vraagLocatieKeuze(
   await stuurLocatieKeuze(chatId, "Bedoel je een van deze?", kandidaten);
 }
 
+async function stuurHelp(chatId: number): Promise<void> {
+  await stuurTelegramBericht(
+    chatId,
+    [
+      "Dit kan ik voor je doen:",
+      "",
+      '🔎 Banen zoeken: "zoek morgen een baan in Haarlem rond 2000"',
+      '📏 Straal aanpassen: "maak mijn straal 5 km"',
+      '🕒 Tijd instellen: "zet mijn tijd op 2000" (mag ook 20:00, 830 of 8)',
+      '📍 Locatie wijzigen: "verander mijn locatie naar Leiden"',
+      '📅 Vast speelmoment toevoegen: "zet dinsdag 20:00 als vast moment"',
+      '➖ Vast speelmoment verwijderen: "haal dinsdag weg"',
+      "⚙️ Instellingen bekijken: /status",
+      "❌ Actie stoppen: /annuleer",
+      "",
+      "Tijden mogen met of zonder dubbele punt: 20:00, 2000, 830 of 8.",
+      "",
+      "Uit veiligheid kan ik geen telefoonnummer wijzigen en geen account verwijderen — dat kan alleen via je Account-pagina.",
+    ].join("\n")
+  );
+}
+
+async function toonProfielstatus(admin: Admin, profiel: ProfielRij, chatId: number): Promise<void> {
+  const { data: momenten, error } = await admin
+    .from("vaste_speelmomenten")
+    .select("dag, tijd, gemeld")
+    .eq("profile_id", profiel.id);
+
+  if (error) console.error("[telegram] Vaste speelmomenten voor /status ophalen mislukt:", error.message);
+
+  const momentRegels =
+    momenten && momenten.length > 0
+      ? momenten
+          .map((m) => `  • ${formatteerVastMoment(m.dag as number, m.tijd as string)}${m.gemeld ? "" : " (melding uit)"}`)
+          .join("\n")
+      : "  geen";
+
+  await stuurTelegramBericht(
+    chatId,
+    [
+      "Je huidige VrijeBaan-voorkeuren:",
+      `📍 Locatie: ${profiel.woonplaats ?? "niet ingesteld"}`,
+      `📏 Straal: ${profiel.zoekstraal_km ?? STANDAARD_STRAAL_KM} km`,
+      `🕒 Tijd: ${profiel.voorkeurstijd ?? "geen voorkeur"}`,
+      "📅 Vaste speelmomenten:",
+      momentRegels,
+      "",
+      'Je kunt bijvoorbeeld sturen: "maak straal 5 km en zet mijn tijd op 2000", of "zet dinsdag 20:00 als vast moment".',
+    ].join("\n")
+  );
+}
+
+/**
+ * Voert straal/tijd/locatie in één update door — zodat "maak straal 5 km en
+ * zet mijn tijd op 2000" in één keer verwerkt wordt i.p.v. de gebruiker twee
+ * losse berichten te laten sturen. Locatie loopt appart via vraagLocatieKeuze
+ * (die heeft eerst een geocode + keuzeknoppen nodig), dus die wordt door de
+ * aanroeper zelf al afgehandeld — dit hier verwerkt alleen straal en tijd.
+ */
+async function pasProfielWijzigingenToe(
+  admin: Admin,
+  profiel: ProfielRij,
+  chatId: number,
+  wijzigingen: ParseResultaat["wijzigingen"]
+): Promise<boolean> {
+  const updateData: Record<string, unknown> = {};
+  const bevestigingen: string[] = [];
+
+  if (wijzigingen.straalKm !== undefined) {
+    updateData.zoekstraal_km = wijzigingen.straalKm;
+    bevestigingen.push(`straal ${wijzigingen.straalKm} km`);
+  }
+
+  if (wijzigingen.voorkeurstijd !== undefined) {
+    updateData.voorkeurstijd = wijzigingen.voorkeurstijd;
+    bevestigingen.push(wijzigingen.voorkeurstijd ? `tijd rond ${wijzigingen.voorkeurstijd}` : "geen vaste tijd");
+  }
+
+  if (Object.keys(updateData).length === 0) return false;
+
+  const { error } = await admin.from("profiles").update(updateData).eq("id", profiel.id);
+
+  if (error) {
+    console.error("[telegram] Profielwijziging mislukt:", error.message);
+    await stuurTelegramBericht(chatId, "De wijziging kon niet worden opgeslagen. Probeer het later opnieuw.");
+    return true;
+  }
+
+  // Onboarding-tijdvraag beantwoord via een "profiel wijzigen"-achtige zin
+  // (bv. "zet mijn tijd op 2000" tijdens wacht_tijd_onboarding) rondt de
+  // onboarding ook meteen af — anders zou de bot op de oude vraag blijven
+  // wachten terwijl de tijd al is opgeslagen.
+  if (profiel.telegram_onboarding_stap === "wacht_tijd_onboarding" && wijzigingen.voorkeurstijd !== undefined) {
+    await admin.from("profiles").update({ telegram_onboarding_stap: null }).eq("id", profiel.id);
+  }
+
+  await stuurTelegramBericht(chatId, `Aangepast: ${bevestigingen.join(", ")}.`);
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   const verwachteSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   const ontvangenSecret = req.headers.get("x-telegram-bot-api-secret-token");
@@ -117,11 +262,7 @@ export async function POST(req: NextRequest) {
     const data = cq.data;
     if (!chatId || !data?.startsWith("loc:")) return NextResponse.json({ ok: true });
 
-    const { data: profiel } = await admin
-      .from("profiles")
-      .select("id, telegram_onboarding_stap, telegram_kandidaten")
-      .eq("telegram_chat_id", chatId)
-      .maybeSingle();
+    const profiel = await haalProfielOp(admin, chatId);
     if (!profiel) return NextResponse.json({ ok: true });
 
     const opgeslagen = profiel.telegram_kandidaten as TelegramKandidaten | null;
@@ -168,6 +309,27 @@ export async function POST(req: NextRequest) {
         { admin, profielId: profiel.id }
       );
       await stuurTelegramBericht(chatId, antwoord);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Locatie wijzigen buiten onboarding om ("verander mijn locatie naar
+    // Leiden") — zelfde keuzeknoppen, maar hier alleen lat/lon/woonplaats
+    // bijwerken, verder niets aan zoekstraal_km of onboarding-status raken.
+    if (profiel.telegram_onboarding_stap === "wacht_locatie_profiel") {
+      const { error } = await admin
+        .from("profiles")
+        .update({
+          lat: kandidaat.lat,
+          lon: kandidaat.lon,
+          woonplaats: naam,
+          telegram_onboarding_stap: null,
+          telegram_kandidaten: null,
+        })
+        .eq("id", profiel.id);
+      await stuurTelegramBericht(
+        chatId,
+        error ? "Ik kon je locatie niet aanpassen. Probeer het later opnieuw." : `Aangepast: je locatie is nu ${naam}.`
+      );
       return NextResponse.json({ ok: true });
     }
 
@@ -228,11 +390,7 @@ export async function POST(req: NextRequest) {
   }
 
   // --- Actief gesprek? Behandel de tekst als antwoord op de laatste vraag ---
-  const { data: profiel } = await admin
-    .from("profiles")
-    .select("id, telegram_onboarding_stap")
-    .eq("telegram_chat_id", chatId)
-    .maybeSingle();
+  const profiel = await haalProfielOp(admin, chatId);
 
   if (!profiel) {
     await stuurTelegramBericht(
@@ -242,30 +400,113 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  const schoon = tekst.toLowerCase();
+
+  // --- Veilige globale commando's — werken altijd, ook midden in een gesprek ---
+  if (/^\/?(help|hulp|mogelijkheden)$/.test(schoon)) {
+    await stuurHelp(chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (
+    /^\/?(status|instellingen|voorkeuren)$/.test(schoon) ||
+    /\b(wat zijn|toon|laat zien).*\b(instellingen|voorkeuren)\b/.test(schoon) ||
+    /\b(wat is|welke).*\b(straal|zoekstraal|vast(e)? (speel)?moment(en)?|tijd)\b/.test(schoon)
+  ) {
+    await toonProfielstatus(admin, profiel, chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (/^\/?(annuleer|cancel|stop)$/.test(schoon)) {
+    await admin
+      .from("profiles")
+      .update({ telegram_onboarding_stap: null, telegram_kandidaten: null })
+      .eq("id", profiel.id);
+    await stuurTelegramBericht(chatId, "De huidige actie is geannuleerd.");
+    return NextResponse.json({ ok: true });
+  }
+
+  // --- Verboden accountacties altijd vóór verdere interpretatie afvangen ---
+  if (bevatVerbodenActie(tekst)) {
+    await stuurTelegramBericht(
+      chatId,
+      "Dit kan ik om veiligheidsredenen niet via Telegram aanpassen. Gebruik hiervoor je Account-pagina in De Vrije Baan."
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  /**
+   * Accountintents komen vóór onboarding-antwoorden en de losse
+   * zoekopdracht — zonder deze volgorde zou "maak straal 5 km" tijdens een
+   * actief gesprek (bv. de onboarding-tijdvraag) als een ongeldig antwoord
+   * op díe vraag worden afgewezen.
+   */
+  const profielParse = parseProfielWijzigingen(tekst);
+
+  if (profielParse.fout) {
+    await stuurTelegramBericht(chatId, profielParse.fout);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (profielParse.wijzigingen.locatieQuery) {
+    await vraagLocatieKeuze(
+      admin,
+      profiel.id,
+      chatId,
+      profielParse.wijzigingen.locatieQuery,
+      "wacht_locatie_profiel",
+      null
+    );
+    // Straal/tijd kunnen in hetzelfde bericht staan als de locatiewijziging
+    // ("maak straal 5 km en verander mijn locatie naar Leiden") — die alvast
+    // los toepassen, de locatie zelf moet nog via de keuzeknoppen bevestigd worden.
+    await pasProfielWijzigingenToe(admin, profiel, chatId, { ...profielParse.wijzigingen, locatieQuery: undefined });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (profielParse.herkend) {
+    const verwerkt = await pasProfielWijzigingenToe(admin, profiel, chatId, profielParse.wijzigingen);
+    if (verwerkt) return NextResponse.json({ ok: true });
+  }
+
+  // --- Vaste speelmomenten via chat ("zet dinsdag 20:00 als vast moment") ---
+  const vastMomentOpdracht = parseVastMomentOpdracht(tekst);
+  if (vastMomentOpdracht) {
+    const antwoord = await pasVasteMomentToe(admin, profiel.id, vastMomentOpdracht);
+    await stuurTelegramBericht(chatId, antwoord);
+    return NextResponse.json({ ok: true });
+  }
+
+  // --- Actieve onboarding- of locatieflow ---
   if (profiel.telegram_onboarding_stap === "wacht_locatie_onboarding") {
     await vraagLocatieKeuze(admin, profiel.id, chatId, tekst, "wacht_locatie_onboarding", null);
     return NextResponse.json({ ok: true });
   }
 
   if (profiel.telegram_onboarding_stap === "wacht_tijd_onboarding") {
-    const schoon = tekst.toLowerCase();
     if (schoon.includes("geen voorkeur") || schoon === "geen" || schoon === "-") {
       await admin.from("profiles").update({ voorkeurstijd: null, telegram_onboarding_stap: null }).eq("id", profiel.id);
       await stuurTelegramBericht(
         chatId,
-        "Prima, geen vaste tijd. Je krijgt een bericht zodra er iets vrijkomt bij een club binnen je straal. Aanpassen kan altijd via je Account-pagina."
+        "Prima, geen vaste tijd. Je krijgt een bericht zodra er iets vrijkomt bij een club die je volgt. Aanpassen kan altijd via je Account-pagina, of gewoon hier in de chat."
       );
       return NextResponse.json({ ok: true });
     }
-    const tijd = extraheerTijd(tekst);
+    // extraheerFlexibeleTijd i.p.v. de strengere extraheerTijd (die hierboven
+    // nog wel voor de losse zoekopdracht wordt gebruikt) — accepteert ook
+    // "2000", "830" of "8" als los antwoord, niet alleen "19:00".
+    const tijd = extraheerFlexibeleTijd(tekst, "tijdantwoord");
     if (!tijd) {
-      await stuurTelegramBericht(chatId, 'Dat herken ik niet als tijd. Typ bijvoorbeeld "19:00", of stuur "geen voorkeur".');
+      await stuurTelegramBericht(
+        chatId,
+        'Dat herken ik niet als tijd. Typ bijvoorbeeld "19:00", "1900", "830" of "19". Je kunt ook "geen voorkeur" sturen.'
+      );
       return NextResponse.json({ ok: true });
     }
     await admin.from("profiles").update({ voorkeurstijd: tijd, telegram_onboarding_stap: null }).eq("id", profiel.id);
     await stuurTelegramBericht(
       chatId,
-      `Genoteerd: rond ${tijd}. Je krijgt een bericht zodra er een plek vrijkomt binnen je straal rond die tijd. Wijzigen kan altijd via je Account-pagina.`
+      `Genoteerd: rond ${tijd}. Wijzigen kan altijd via je Account-pagina, of gewoon hier in de chat (bv. "zet mijn tijd op 2030").`
     );
     return NextResponse.json({ ok: true });
   }
@@ -278,21 +519,43 @@ export async function POST(req: NextRequest) {
   // --- Geen actief gesprek: proberen als losse zoekopdracht te lezen ---
   const zoekopdracht = parseAdhocZoekopdracht(tekst);
   if (zoekopdracht) {
+    // parseAdhocZoekopdracht herkent tijden alleen in de striktere vormen
+    // (20:00, 20u, om 20, …) om de plaats-extractie niet te verstoren (zie
+    // extraheerPlaats in telegramConversatie.ts) — een compacte vorm als
+    // "2000" mist die daardoor. Hier als fallback alsnog proberen, zonder de
+    // striktere parser zelf aan te passen.
+    const flexibeleTijd = zoekopdracht.tijd ?? extraheerFlexibeleTijd(tekst, "zoeken");
     await vraagLocatieKeuze(
       admin,
       profiel.id,
       chatId,
       zoekopdracht.plaatsQuery,
       "wacht_locatie_adhoc",
-      zoekopdracht.tijd,
+      flexibeleTijd,
       zoekopdracht.dagOffset
     );
     return NextResponse.json({ ok: true });
   }
 
+  // --- Eenvoudige natuurlijke vragen ---
+  if (/\b(wat kan je|wat kun je|wat kan jij|mogelijkheden)\b/.test(schoon)) {
+    await stuurHelp(chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (/\b(bedankt|dankjewel|dank je|top|mooi)\b/.test(schoon)) {
+    await stuurTelegramBericht(chatId, "Graag gedaan! Stuur /help om te zien wat ik voor je kan doen.");
+    return NextResponse.json({ ok: true });
+  }
+
   await stuurTelegramBericht(
     chatId,
-    'Dat snap ik niet. Probeer bijvoorbeeld "zoek een baan in Haarlem rond 20:00", of pas je voorkeuren aan via je Account-pagina in VrijeBaan.'
+    [
+      "Dat snap ik nog niet helemaal.",
+      'Probeer bijvoorbeeld: "zoek een baan in Haarlem rond 2000",',
+      '"maak mijn straal 5 km", of "zet dinsdag 20:00 als vast moment".',
+      "Stuur /help voor alle mogelijkheden.",
+    ].join("\n")
   );
   return NextResponse.json({ ok: true });
 }

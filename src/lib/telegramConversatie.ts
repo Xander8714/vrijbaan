@@ -1,13 +1,21 @@
 /**
- * Gesprekslogica voor de Telegram-bot (2 aug 2026) — los van het
- * Telegram-protocol zelf (dat blijft in src/app/api/telegram/webhook), zodat
- * dit los te testen is. Twee gespreksvormen:
+ * Gesprekslogica voor de Telegram-bot (2 aug 2026, uitgebreid 5 aug 2026) —
+ * los van het Telegram-protocol zelf (dat blijft in
+ * src/app/api/telegram/webhook), zodat dit los te testen is. Drie
+ * gespreksvormen:
  *
  * 1. Onboarding (na het koppelen): "waar wil je padellen?" + "hoe laat?" —
  *    zet profiles.lat/lon/woonplaats/zoekstraal_km/voorkeurstijd, gebruikt
  *    door de achtergrond-poller voor toekomstige meldingen.
  * 2. Losse zoekopdracht in vrije tekst ("zoek een baan in Haarlem rond
  *    20:00") — direct een live antwoord met tijden, geen opgeslagen state.
+ * 3. Profiel aanpassen buiten onboarding om (5 aug 2026): straal, tijd en
+ *    locatie via parseProfielWijzigingen, en vaste speelmomenten (dag+tijd,
+ *    tabel vaste_speelmomenten) via parseVastMomentOpdracht. Bewust GEEN
+ *    losse "favoriete dag"-kolom — dat zou een tweede, ongebruikt
+ *    dagen-concept zijn naast de al bestaande vaste_speelmomenten-tabel
+ *    (zie src/app/account/VasteMomenten.tsx), die dag én tijd samen opslaat
+ *    plus een eigen "op de hoogte houden"-vinkje per moment.
  *
  * BELANGRIJKE BEPERKING (2 aug 2026, nog niet opgelost): losse
  * zoekopdrachten roepen /api/beschikbaarheid aan, en die route gebruikt voor
@@ -31,6 +39,14 @@ const STRAAL_ADHOC_KM = 10;
 const MAX_CLUBS_ADHOC = 12;
 const MAX_CLUBS_IN_BERICHT = 6;
 const MARGE_UREN_ADHOC = 2;
+
+// Zelfde grens als de Radar-pagina's straal-slider (min=1, max=25) — de
+// ruimste van de twee plekken die profiles.zoekstraal_km al bewerken (de
+// Account-pagina's slider gaat maar tot 10). De databasecheck zelf staat
+// 1-200 toe, maar de bot moet niet ruimer zijn dan wat een gebruiker via de
+// site sowieso al kan instellen.
+const MIN_STRAAL_KM = 1;
+const MAX_STRAAL_KM = 25;
 
 export type Slot = { tijd: string; prijs: string | null };
 type BeschikbaarheidRij = { clubId: string; sloten: Slot[]; fout?: string };
@@ -258,4 +274,414 @@ export async function zoekBeschikbaarheidVoorChat(
   // te krijgen. Telegram's eigen "doorsturen" doet de rest, dit is puur de
   // nudge om eraan te denken.
   return `${kop}\n\n${regels.join("\n")}\n\nBoek via de Radar:\n${radarLink}\n\nStuur dit door naar je padelmaatjes.`;
+}
+
+// --- Profiel aanpassen via vrije tekst (5 aug 2026) ---------------------
+//
+// Alles hieronder is nieuw t.o.v. de losse zoekopdracht hierboven: geen
+// éénmalige zoekvraag, maar een instelling die blijft staan tot de
+// gebruiker hem weer wijzigt. Xander na het eerste gebruik van de bot:
+// "ik kon er niet goed tegen praten" — dit maakt straal/tijd/locatie en
+// vaste speelmomenten net zo natuurlijk aanpasbaar als een zoekopdracht,
+// zonder terug te hoeven naar de Account-pagina.
+
+function normaliseerTekst(tekst: string): string {
+  return tekst
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[’']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Leest tijden uit normale Nederlandse tekst, ruimer dan extraheerTijd
+ * hierboven (die blijft ongewijzigd voor de losse zoekopdracht, om die
+ * bestaande, al werkende plaats-extractie niet te verstoren — zie
+ * extraheerPlaats die op TIJD_PATRONEN steunt om de plaatsnaam over te
+ * houden).
+ *
+ * Ondersteunt: 20:00, 20.00, 20u00, 20u, 2000, 830, 8, 20, "om 20", "rond
+ * 1930" en, buiten context "profiel", ook een tijd zonder "om"/"tijd"
+ * ervoor: een kaal antwoord in context "tijdantwoord" (bv. tijdens de
+ * onboardingvraag "hoe laat?") en een los getal ergens in de zin in context
+ * "vastmoment" (bv. "zet dinsdag 20:00 als vast moment" — daar staat de tijd
+ * los naast de dag, zonder "om" ervoor). Context "profiel" blijft wél
+ * strikter, juist om "straal 20 km" niet als 20:00 te lezen.
+ */
+export function extraheerFlexibeleTijd(
+  tekst: string,
+  context: "tijdantwoord" | "profiel" | "zoeken" | "vastmoment" = "profiel"
+): string | null {
+  const schoon = normaliseerTekst(tekst);
+
+  if (/(geen voorkeur|geen vaste tijd|tijd verwijderen|wis.*tijd|zonder tijd)/.test(schoon)) {
+    return null;
+  }
+
+  const contextMatches = [
+    ...schoon.matchAll(
+      /(?:om|rond|tegen|vanaf|tijd(?:stip)?(?:\s+op|\s+naar|\s+is)?|meestal)\s+(\d{1,2})(?:(?::|\.|u)\s?(\d{2}))?\b/g
+    ),
+  ];
+  const compactContextMatches = [
+    ...schoon.matchAll(
+      /(?:om|rond|tegen|vanaf|tijd(?:stip)?(?:\s+op|\s+naar|\s+is)?|meestal)\s+(\d{3,4})\b/g
+    ),
+  ];
+
+  let uren: number | null = null;
+  let minuten = 0;
+
+  const compact = compactContextMatches.at(-1)?.[1];
+  if (compact) {
+    if (compact.length === 3) {
+      uren = Number(compact.slice(0, 1));
+      minuten = Number(compact.slice(1));
+    } else {
+      uren = Number(compact.slice(0, 2));
+      minuten = Number(compact.slice(2));
+    }
+  } else {
+    const match = contextMatches.at(-1);
+    if (match) {
+      uren = Number(match[1]);
+      minuten = match[2] ? Number(match[2]) : 0;
+    }
+  }
+
+  if (uren === null && context === "tijdantwoord") {
+    // Hele bericht is niets anders dan het antwoord — vandaar ^...$.
+    const alleenCompact = schoon.match(/^(\d{3,4})$/);
+    const alleenGescheiden = schoon.match(/^(\d{1,2})(?::|\.|u)(\d{2})$/);
+    const alleenUur = schoon.match(/^(\d{1,2})(?:\s*uur)?$/);
+
+    if (alleenCompact) {
+      const waarde = alleenCompact[1];
+      uren = waarde.length === 3 ? Number(waarde.slice(0, 1)) : Number(waarde.slice(0, 2));
+      minuten = waarde.length === 3 ? Number(waarde.slice(1)) : Number(waarde.slice(2));
+    } else if (alleenGescheiden) {
+      uren = Number(alleenGescheiden[1]);
+      minuten = Number(alleenGescheiden[2]);
+    } else if (alleenUur) {
+      uren = Number(alleenUur[1]);
+      minuten = 0;
+    }
+  }
+
+  if (uren === null && context === "vastmoment") {
+    // Hier NIET ^...$: "zet dinsdag 20:00 als vast moment" heeft nog woorden
+    // omheen, de tijd hoeft alleen ergens los (zonder "om"/"tijd" ervoor) in
+    // de zin te staan — de dag+vast-moment-context is dan al genoeg signaal.
+    const compactOveral = schoon.match(/\b(\d{3,4})\b/);
+    const gescheidenOveral = schoon.match(/\b(\d{1,2})(?::|\.|u)(\d{2})\b/);
+    const uurOveral = schoon.match(/\b(\d{1,2})\s*uur\b/);
+
+    if (compactOveral) {
+      const waarde = compactOveral[1];
+      uren = waarde.length === 3 ? Number(waarde.slice(0, 1)) : Number(waarde.slice(0, 2));
+      minuten = waarde.length === 3 ? Number(waarde.slice(1)) : Number(waarde.slice(2));
+    } else if (gescheidenOveral) {
+      uren = Number(gescheidenOveral[1]);
+      minuten = Number(gescheidenOveral[2]);
+    } else if (uurOveral) {
+      uren = Number(uurOveral[1]);
+      minuten = 0;
+    }
+  }
+
+  if (
+    uren === null ||
+    !Number.isInteger(uren) ||
+    !Number.isInteger(minuten) ||
+    uren < 0 ||
+    uren > 23 ||
+    minuten < 0 ||
+    minuten > 59
+  ) {
+    return null;
+  }
+
+  // rondAfOpHalfUur (tijd.ts) rondt sowieso af — hier alvast een geldig
+  // "HH:MM"-formaat van maken zodat die functie er iets mee kan.
+  return rondAfOpHalfUur(`${String(uren).padStart(2, "0")}:${String(minuten).padStart(2, "0")}`);
+}
+
+/** "maak mijn straal 5 km" / "zoekstraal op 8" e.d. null als er geen straal-signaal in staat. */
+export function extraheerStraal(tekst: string): number | null {
+  const schoon = normaliseerTekst(tekst);
+  const match = schoon.match(
+    /(?:zoekstraal|straal|zoekafstand|radius|binnen)\s*(?:op|naar|van|is)?\s*(\d{1,3})(?:\s*(?:km|kilometer))?\b/
+  );
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+/** "verander mijn locatie naar Leiden" / "ik woon nu in Leiden" e.d. */
+export function extraheerLocatieWijziging(tekst: string): string | null {
+  const schoon = normaliseerTekst(tekst);
+  const locatieMatch = schoon.match(
+    /(?:verander|wijzig|zet|maak|gebruik)\s+(?:mijn\s+)?(?:locatie|woonplaats|zoeklocatie)\s+(?:naar|op)?\s+(.+)$/
+  );
+  const woonNuMatch = schoon.match(/\bik woon nu in\s+(.+)$/);
+  const query = locatieMatch?.[1] ?? woonNuMatch?.[1];
+  if (!query || query.length < 2) return null;
+  return query.trim();
+}
+
+/**
+ * Blokkeert gevoelige accountacties altijd, ongeacht wat de overige parsers
+ * erin herkennen — telefoonnummer wijzigen en account verwijderen kunnen
+ * bewust NIET via Telegram (zie ook src/app/api/telegram/webhook/route.ts),
+ * en een paar voor de hand liggende escalatiepogingen (rol/rechten/SQL)
+ * worden voor de zekerheid ook afgevangen, ook al bestaat er geen pad dat
+ * die daadwerkelijk zou uitvoeren.
+ */
+export function bevatVerbodenActie(tekst: string): boolean {
+  const schoon = normaliseerTekst(tekst);
+  return [
+    /\b(telefoonnummer|mobiele nummer|06 nummer)\b.*\b(wijzig|verander|aanpas|zet)\b/,
+    /\b(wijzig|verander|aanpas|zet)\b.*\b(telefoonnummer|mobiele nummer|06 nummer)\b/,
+    /\b(account|profiel)\b.*\b(verwijder|delete|opheffen|opzeggen)\b/,
+    /\b(verwijder|delete|opheffen|opzeggen)\b.*\b(account|profiel)\b/,
+    /\b(maak|geef|zet)\b.*\b(admin|beheerder|administrator)\b/,
+    /\b(wijzig|verander)\b.*\b(rol|rechten|wachtwoord|email|e-mail)\b/,
+    /\b(sql|database query|drop table|delete from|update profiles)\b/,
+  ].some((patroon) => patroon.test(schoon));
+}
+
+export type ProfielWijzigingen = {
+  straalKm?: number;
+  voorkeurstijd?: string | null;
+  locatieQuery?: string;
+};
+
+export type ParseResultaat = {
+  wijzigingen: ProfielWijzigingen;
+  herkend: boolean;
+  fout?: string;
+};
+
+/**
+ * Herkent straal/tijd/locatie-wijzigingen door elkaar in één bericht (zodat
+ * "maak straal 5 km en zet mijn tijd op 2000" in één keer verwerkt wordt).
+ * "Favoriete dagen" loopt bewust via een apart pad (parseVastMomentOpdracht
+ * hieronder) — die schrijft naar vaste_speelmomenten, een tabel, niet naar
+ * een los profielveld, dus die past niet in dit ene update-object.
+ */
+export function parseProfielWijzigingen(tekst: string): ParseResultaat {
+  const schoon = normaliseerTekst(tekst);
+  const wijzigingen: ProfielWijzigingen = {};
+  let herkend = false;
+
+  const straal = extraheerStraal(tekst);
+  if (straal !== null) {
+    herkend = true;
+    if (straal < MIN_STRAAL_KM || straal > MAX_STRAAL_KM) {
+      return {
+        wijzigingen,
+        herkend,
+        fout: `Je zoekstraal moet tussen ${MIN_STRAAL_KM} en ${MAX_STRAAL_KM} km liggen.`,
+      };
+    }
+    wijzigingen.straalKm = straal;
+  }
+
+  const verwijderTijd = /\b(geen voorkeur|geen vaste tijd|tijd verwijderen|wis.*tijd|zonder tijd)\b/.test(schoon);
+  // Bewust NIET op kale "om"/"rond" alleen — dat zijn ook precies de woorden
+  // waarmee de losse zoekopdracht een tijd aangeeft ("zoek een baan in
+  // Haarlem rond 20:00"). Zonder deze beperking zou zo'n zoekopdracht de
+  // persoonlijke voorkeurstijd stilzwijgend overschrijven i.p.v. gewoon een
+  // eenmalige zoekvraag te zijn. Het woord "tijd" zelf (of "voorkeurstijd",
+  // of een expliciet werkwoord+tijd) komt in een losse zoekopdracht vrijwel
+  // nooit voor, dus dat blijft wél een betrouwbaar signaal.
+  const heeftTijdContext =
+    verwijderTijd ||
+    /voorkeurstijd|\btijdstip\b|\bmijn tijd\b|\bje tijd\b|\btijd\s+(?:op|naar|is)\b|\b(?:zet|verander|wijzig|maak|stel|pas)\b.*\btijd\b/.test(
+      schoon
+    );
+
+  if (heeftTijdContext) {
+    const tijd = extraheerFlexibeleTijd(tekst, "profiel");
+    if (verwijderTijd) {
+      herkend = true;
+      wijzigingen.voorkeurstijd = null;
+    } else if (tijd) {
+      herkend = true;
+      wijzigingen.voorkeurstijd = tijd;
+    } else {
+      return {
+        wijzigingen,
+        herkend: true,
+        fout: 'Ik herken de tijd niet. Gebruik bijvoorbeeld "2000", "20:00", "830" of "8".',
+      };
+    }
+  }
+
+  const locatieQuery = extraheerLocatieWijziging(tekst);
+  if (locatieQuery) {
+    herkend = true;
+    wijzigingen.locatieQuery = locatieQuery;
+  }
+
+  return { wijzigingen, herkend };
+}
+
+// --- Vaste speelmomenten via chat (5 aug 2026) --------------------------
+//
+// "Favoriete dagen" uit het oorspronkelijke idee gekoppeld aan de bestaande
+// tabel vaste_speelmomenten (dag+tijd samen, zie de migratie van 3 aug 2026
+// en src/app/account/VasteMomenten.tsx) i.p.v. een nieuwe, losse
+// dagen-kolom: die tabel is al de plek die de wekelijkse herinnering
+// (scripts/poll-availability.ts) leest, dus een tweede "dagen"-concept ernaast
+// zou nergens door gelezen worden.
+
+// JS Date#getDay()-conventie (0=zondag) — zelfde als vaste_speelmomenten.dag
+// en src/app/account/VasteMomenten.tsx.
+const WEEKDAG_NAAR_NUMMER: Record<string, number> = {
+  zondag: 0, maandag: 1, dinsdag: 2, woensdag: 3, donderdag: 4, vrijdag: 5, zaterdag: 6,
+  zo: 0, ma: 1, di: 2, wo: 3, do: 4, vr: 5, za: 6,
+};
+// Weergavevolgorde begint bij maandag, zelfde reden als VasteMomenten.tsx:
+// leest natuurlijker in het Nederlands, ook al is 0 (zondag) de opgeslagen waarde.
+const WEEKDAG_VOLGORDE = [1, 2, 3, 4, 5, 6, 0];
+const WEEKDAGNAMEN = ["zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag"];
+
+function sorteerDagen(dagen: number[]): number[] {
+  const uniek = [...new Set(dagen)];
+  return WEEKDAG_VOLGORDE.filter((d) => uniek.includes(d));
+}
+
+/** Weekdagnamen/-afkortingen uit vrije tekst, plus "elke dag"/"werkdagen"/"weekend". Geen dagwoorden = lege lijst. */
+export function extraheerWeekdagen(tekst: string): number[] {
+  const schoon = normaliseerTekst(tekst);
+  const resultaat: number[] = [];
+
+  if (/\b(elke dag|alle dagen|dagelijks)\b/.test(schoon)) return sorteerDagen([0, 1, 2, 3, 4, 5, 6]);
+  if (/\b(werkdagen|doordeweeks)\b/.test(schoon)) resultaat.push(1, 2, 3, 4, 5);
+  if (/\b(weekend|weekenden)\b/.test(schoon)) resultaat.push(6, 0);
+
+  for (const [naam, nummer] of Object.entries(WEEKDAG_NAAR_NUMMER)) {
+    if (new RegExp(`\\b${naam}\\b`).test(schoon)) resultaat.push(nummer);
+  }
+
+  return sorteerDagen(resultaat);
+}
+
+/** "dinsdag 20:00" — voor bevestigings- en statusberichten. */
+export function formatteerVastMoment(dag: number, tijd: string): string {
+  return `${WEEKDAGNAMEN[dag]} ${tijd}`;
+}
+
+export type VastMomentActie = "toevoegen" | "verwijderen";
+export type VastMomentOpdracht = { actie: VastMomentActie; dagen: number[]; tijd: string | null };
+
+// Alleen bij een van deze signalen gaat een bericht als vast-moment-opdracht
+// door — anders zou elk toevallig genoemd weekdagwoord (die ook in een losse
+// zoekopdracht kan voorkomen) al als "vast moment instellen" gelezen worden.
+const VAST_MOMENT_CONTEXT =
+  /\b(vast moment|vaste moment|vaste speelmoment|vaste speeldag|structureel|elke week|wekelijks|speeldag|speeldagen|favoriete dag|favoriete dagen)\b/;
+
+// Los van VAST_MOMENT_CONTEXT hierboven ook een simpel werkwoordsignaal:
+// "haal dinsdag weg" of "zet dinsdag 20:00" zijn allebei natuurlijke,
+// ondubbelzinnige opdrachten zonder dat de gebruiker per se het woord "vast
+// moment" hoeft te typen. Ad-hoc zoekopdrachten ("zoek een baan in...")
+// gebruiken geen van deze werkwoorden, dus het risico op verwarring is laag.
+const VAST_MOMENT_VERWIJDER_SIGNAAL = /\b(haal|verwijder|niet meer|stop met)\b/;
+const VAST_MOMENT_TOEVOEG_SIGNAAL = /\b(voeg|toevoegen|erbij|zet|maak|stel)\b/;
+
+/**
+ * Herkent "zet/voeg dinsdag 20:00 toe als vast moment" en "haal
+ * dinsdag/dinsdag 20:00 weg" (met eventueel meerdere dagen in één bericht).
+ * Null als er geen weekdag + duidelijk vast-moment-signaal in staat.
+ */
+export function parseVastMomentOpdracht(tekst: string): VastMomentOpdracht | null {
+  const schoon = normaliseerTekst(tekst);
+  const dagen = extraheerWeekdagen(tekst);
+  if (dagen.length === 0) return null;
+
+  const verwijderen = VAST_MOMENT_VERWIJDER_SIGNAAL.test(schoon) || /\bweg\b/.test(schoon);
+  const toevoegen = VAST_MOMENT_TOEVOEG_SIGNAAL.test(schoon);
+
+  if (!VAST_MOMENT_CONTEXT.test(schoon) && !verwijderen && !toevoegen) return null;
+
+  const tijd = extraheerFlexibeleTijd(tekst, "vastmoment");
+
+  return { actie: verwijderen ? "verwijderen" : "toevoegen", dagen, tijd };
+}
+
+type VastSpeelmomentRij = { id: string; dag: number; tijd: string };
+
+/**
+ * Voert een parseVastMomentOpdracht-resultaat door tegen vaste_speelmomenten
+ * en geeft het bevestigings- of foutbericht terug. Slaat bewust dubbele
+ * momenten (zelfde dag+tijd, al bestaand) over i.p.v. ze nogmaals in te
+ * voegen — anders levert twee keer dezelfde opdracht sturen twee identieke
+ * rijen op.
+ */
+export async function pasVasteMomentToe(
+  admin: SupabaseClient,
+  profielId: string,
+  opdracht: VastMomentOpdracht
+): Promise<string> {
+  if (opdracht.actie === "toevoegen" && !opdracht.tijd) {
+    return "Welke tijd hoort daarbij? Bijvoorbeeld \"zet dinsdag 20:00 als vast moment\".";
+  }
+
+  const { data: bestaand, error: leesFout } = await admin
+    .from("vaste_speelmomenten")
+    .select("id, dag, tijd")
+    .eq("profile_id", profielId);
+
+  if (leesFout) {
+    console.error("[telegram] Vaste speelmomenten lezen mislukt:", leesFout.message);
+    return "Dat kon ik nu niet opslaan. Probeer het later opnieuw.";
+  }
+
+  const rijen = (bestaand ?? []) as VastSpeelmomentRij[];
+
+  if (opdracht.actie === "verwijderen") {
+    const teVerwijderen = rijen.filter(
+      (r) => opdracht.dagen.includes(r.dag) && (opdracht.tijd === null || r.tijd === opdracht.tijd)
+    );
+    if (teVerwijderen.length === 0) {
+      return "Ik vond geen vast moment dat daarbij past — check /status voor je huidige momenten.";
+    }
+    const { error } = await admin
+      .from("vaste_speelmomenten")
+      .delete()
+      .in("id", teVerwijderen.map((r) => r.id));
+    if (error) {
+      console.error("[telegram] Vast speelmoment verwijderen mislukt:", error.message);
+      return "Verwijderen lukte niet. Probeer het later opnieuw.";
+    }
+    const omschrijving = teVerwijderen.map((r) => formatteerVastMoment(r.dag, r.tijd)).join(", ");
+    return `Verwijderd: ${omschrijving}.`;
+  }
+
+  const tijd = opdracht.tijd!;
+  const nieuw = opdracht.dagen.filter((dag) => !rijen.some((r) => r.dag === dag && r.tijd === tijd));
+
+  if (nieuw.length === 0) {
+    const omschrijving = opdracht.dagen.map((dag) => formatteerVastMoment(dag, tijd)).join(", ");
+    return `Had je al staan: ${omschrijving}.`;
+  }
+
+  const { error } = await admin
+    .from("vaste_speelmomenten")
+    .insert(nieuw.map((dag) => ({ profile_id: profielId, dag, tijd, gemeld: true })));
+
+  if (error) {
+    console.error("[telegram] Vast speelmoment toevoegen mislukt:", error.message);
+    const tabelOntbreekt = /relation|column|schema cache/i.test(error.message);
+    return tabelOntbreekt
+      ? "De database mist de tabel vaste_speelmomenten nog, of de migratie van 3 aug 2026 is niet uitgevoerd."
+      : "Dat kon ik niet opslaan. Probeer het later opnieuw.";
+  }
+
+  const omschrijving = nieuw.map((dag) => formatteerVastMoment(dag, tijd)).join(", ");
+  const overigeAlBestaand = opdracht.dagen.length - nieuw.length;
+  const staartje = overigeAlBestaand > 0 ? ` (${overigeAlBestaand === 1 ? "1 dag had je al" : `${overigeAlBestaand} dagen had je al`})` : "";
+  return `Toegevoegd als vast moment: ${omschrijving}${staartje}. Je krijgt hier een berichtje als dat moment volgende week ook vrij is.`;
 }
