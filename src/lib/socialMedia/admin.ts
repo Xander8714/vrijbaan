@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export type SocialMediaAdmin = { id: string; email: string };
+export type GebruikersStatistieken = { geregistreerd: number; online: number };
 
 function toegestaneEmails(): Set<string> {
   return new Set(
@@ -47,4 +48,20 @@ export async function vereisSocialMediaAdmin(): Promise<SocialMediaAdmin> {
   const admin = await haalSocialMediaAdmin();
   if (!admin) throw new Error("Niet bevoegd voor socialmediabeheer.");
   return admin;
+}
+
+export async function haalGebruikersStatistieken(): Promise<GebruikersStatistieken> {
+  const grens = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const admin = supabaseAdmin();
+  const [totaalResultaat, onlineResultaat] = await Promise.all([
+    admin.from("profiles").select("id", { count: "exact", head: true }),
+    admin.from("profiles").select("id", { count: "exact", head: true }).gte("last_seen_at", grens),
+  ]);
+
+  if (totaalResultaat.error) throw totaalResultaat.error;
+  if (onlineResultaat.error) throw onlineResultaat.error;
+  return {
+    geregistreerd: totaalResultaat.count ?? 0,
+    online: onlineResultaat.count ?? 0,
+  };
 }

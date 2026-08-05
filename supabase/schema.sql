@@ -28,6 +28,9 @@ alter table profiles add column if not exists zoekstraal_km integer not null def
 -- wie er lid is. Vrije tekst naast onze club-id's, want niet elke vereniging
 -- staat al in de app.
 alter table profiles add column if not exists lidmaatschappen text[] not null default '{}';
+alter table profiles add column if not exists last_seen_at timestamptz;
+create index if not exists profiles_last_seen_at_idx
+  on profiles (last_seen_at desc) where last_seen_at is not null;
 create table if not exists gevolgde_clubs (
   user_id uuid not null references profiles(id) on delete cascade,
   club_id text not null,
@@ -55,10 +58,31 @@ create policy "eigen profiel" on profiles for all using (auth.uid() = id);
 create policy "eigen gevolgde clubs" on gevolgde_clubs for all using (auth.uid() = user_id);
 create policy "eigen teams" on teams for all using (auth.uid() = user_id);
 create policy "eigen team spelers" on team_spelers for all using (auth.uid() = (select user_id from teams where teams.id = team_id));
-create or replace function public.handle_new_user() returns trigger as $$
-begin insert into public.profiles (id, email) values (new.id, new.email); return new; end;
-$$ language plpgsql security definer;
-create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.email is null then return new; end if;
+  insert into public.profiles (id, email, voornaam, achternaam)
+  values (
+    new.id,
+    new.email,
+    nullif(new.raw_user_meta_data ->> 'given_name', ''),
+    nullif(new.raw_user_meta_data ->> 'family_name', '')
+  )
+  on conflict (id) do update
+  set email = excluded.email,
+      voornaam = coalesce(public.profiles.voornaam, excluded.voornaam),
+      achternaam = coalesce(public.profiles.achternaam, excluded.achternaam);
+  return new;
+end;
+$$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- Aanmeldingen van clubs die zelf in VrijeBaan willen (29 juli 2026).
 -- BELANGRIJK: een rij hier is een AANVRAAG, geen club in de app. Niets uit deze

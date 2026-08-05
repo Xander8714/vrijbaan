@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { veiligInternPad } from "@/lib/authNavigatie";
+import { zorgVoorProfiel } from "@/lib/profielRegistratie";
 
 /**
  * Vangt de terugkeer van een OAuth-provider (nu: Google) op. Supabase's eigen
@@ -21,7 +22,11 @@ export async function GET(req: NextRequest) {
   if (code) {
     const supabase = await supabaseServer();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(nextPad, SITE_URL));
+    if (!error) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await zorgVoorProfiel(user);
+      return NextResponse.redirect(new URL(nextPad, SITE_URL));
+    }
   }
 
   // Geen code, of het inwisselen mislukte (verlopen/al gebruikt) — terug naar

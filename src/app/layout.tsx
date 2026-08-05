@@ -3,6 +3,7 @@ import "./globals.css";
 import Navigatie from "@/components/Navigatie";
 import Footer from "@/components/Footer";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import AanwezigheidsHeartbeat from "@/components/AanwezigheidsHeartbeat";
 
 // NEXT_PUBLIC_SITE_URL staat al in .env.local (voor de Telegram-deep-link) —
 // hergebruikt hier als canonical/OG-basis, zodat één variabele bepaalt welk
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {children}
         <Footer />
         <GoogleAnalytics />
+        <AanwezigheidsHeartbeat />
       </body>
     </html>
   );

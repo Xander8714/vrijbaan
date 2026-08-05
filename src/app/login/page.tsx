@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { veiligInternPad } from "@/lib/authNavigatie";
@@ -43,7 +43,6 @@ function LoginFormulier() {
     zoekParams.get("fout") === "oauth" ? "Inloggen met Google is niet gelukt. Probeer het nog eens." : null
   );
   const [bezig, setBezig] = useState(false);
-  const router = useRouter();
 
   const wisselNaar = (nieuw: Modus) => { setModus(nieuw); setBericht(null); };
 
@@ -121,7 +120,10 @@ function LoginFormulier() {
       }).catch(() => {});
       return;
     }
-    router.push(volgendPad); router.refresh();
+    // Een volledige navigatie is hier bewust nodig. router.push() kan al een
+    // server-render starten voordat de zojuist geschreven Supabase-cookie in
+    // die aanvraag zit. Dat maakte inloggen pas na een tweede klik zichtbaar.
+    window.location.assign(volgendPad);
   };
 
   const kop = modus === "inloggen" ? "Inloggen" : modus === "registreren" ? "Account aanmaken" : "Wachtwoord vergeten";

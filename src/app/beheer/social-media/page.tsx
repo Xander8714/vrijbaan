@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { haalSocialMediaAdmin } from "@/lib/socialMedia/admin";
+import { haalGebruikersStatistieken, haalSocialMediaAdmin } from "@/lib/socialMedia/admin";
 import { haalSocialPostsVoorBeheer } from "@/lib/socialMedia/repository";
 import { aantalSocialVisualSlides, isSocialStoryVisual } from "@/lib/socialMedia/visual";
 import { archiveerConceptAction, keurConceptGoedAction } from "./actions";
@@ -53,6 +53,7 @@ export default async function SocialMediaBeheerPage() {
     notFound();
   }
   const posts = await haalSocialPostsVoorBeheer();
+  const gebruikers = await haalGebruikersStatistieken();
   const wachtend = posts.filter((post) => post.status === "pending_approval");
   const verwerkt = posts.filter((post) => post.status !== "pending_approval");
   const bestaandeAvondpost = posts.find((post) => post.subjectKey === `daily-evening:${datumAmsterdam(new Date())}`);
@@ -72,6 +73,17 @@ export default async function SocialMediaBeheerPage() {
         </div>
         <ConceptGeneratorKnoppen avondGeblokkeerd={avondGeblokkeerd} />
       </div>
+
+      <section className="mt-8 grid gap-4 sm:grid-cols-2" aria-label="Gebruikersstatistieken">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Geregistreerd</p>
+          <p className="mt-1 text-3xl font-bold text-slate-900">{gebruikers.geregistreerd}</p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">Online (afgelopen 15 minuten)</p>
+          <p className="mt-1 text-3xl font-bold text-court-700">{gebruikers.online}</p>
+        </div>
+      </section>
 
       <section className="mt-10">
         <h2 className="text-xl font-bold text-slate-900">Te beoordelen ({wachtend.length})</h2>
