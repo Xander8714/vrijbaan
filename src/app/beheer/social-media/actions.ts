@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { archiveerConcept, genereerEnBewaarConcept, keurConceptGoed } from "@/lib/socialMedia/repository";
+import { archiveerConcept, genereerEnBewaarConcept, genereerEnBewaarTellingConcept, keurConceptGoed } from "@/lib/socialMedia/repository";
 import { vereisSocialMediaAdmin } from "@/lib/socialMedia/admin";
 
 function verplichtId(formData: FormData): string {
@@ -13,6 +13,12 @@ function verplichtId(formData: FormData): string {
 export async function genereerConceptAction(): Promise<void> {
   await vereisSocialMediaAdmin();
   await genereerEnBewaarConcept();
+  revalidatePath("/beheer/social-media");
+}
+
+export async function genereerTellingConceptAction(): Promise<void> {
+  await vereisSocialMediaAdmin();
+  await genereerEnBewaarTellingConcept();
   revalidatePath("/beheer/social-media");
 }
 

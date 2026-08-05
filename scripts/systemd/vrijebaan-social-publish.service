@@ -1,0 +1,16 @@
+[Unit]
+Description=VrijeBaan organische socialmediapublicatie
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=xander8714
+WorkingDirectory=/opt/vrijebaan
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run social:publish
+TimeoutStartSec=10min
+
+# De worker leest /opt/vrijebaan/.env.local zelf via @next/env.
+# Controleer voor installatie dat /usr/bin/npm het resultaat is van:
+# command -v npm

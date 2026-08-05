@@ -108,3 +108,24 @@ export function clubsOpAfstand(stad: StadData): (Club & { afstandKm: number })[]
     .map((c) => ({ ...c, afstandKm: afgerondeAfstand(stad.centrum, c) }))
     .sort((a, b) => a.afstandKm - b.afstandKm);
 }
+
+/**
+ * Alle clubs in de 6 testeden samen, gededupliceerd op id — voor code die
+ * over de hele testregio heen telt i.p.v. per stad (5 aug 2026: de
+ * dagelijkse tellingpost van de socialmedia-agent, zie
+ * socialMedia/generator.ts). Hergebruikt STAD_SLUGS/haalStadData i.p.v. een
+ * eigen plaatsnamenlijst bij te houden, zodat dit nooit uit de pas kan lopen
+ * met de steden-pagina's zelf.
+ */
+export function alleTestregioClubs(): Club[] {
+  const geziene = new Set<string>();
+  const clubs: Club[] = [];
+  for (const slug of STAD_SLUGS) {
+    for (const club of haalStadData(slug).clubs) {
+      if (geziene.has(club.id)) continue;
+      geziene.add(club.id);
+      clubs.push(club);
+    }
+  }
+  return clubs;
+}

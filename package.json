@@ -18,13 +18,16 @@
     "ververs:clubdata": "tsx scripts/ververs-clubdata.ts",
     "opschonen:beschikbaarheid": "tsx scripts/opschonen-beschikbaarheid.ts",
     "social:generate": "tsx scripts/generate-social-post.ts",
-    "social:plan-launch": "tsx scripts/plan-social-campaign.ts"
+    "social:plan-launch": "tsx scripts/plan-social-campaign.ts",
+    "social:publish": "tsx scripts/publish-social-media.ts",
+    "social:meta-check": "tsx scripts/publish-social-media.ts --check"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
     "next": "16.2.11",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "sharp": "0.34.5"
   },
   "devDependencies": {
     "@supabase/ssr": "^0.12.3",

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { stuurTelegramBericht } from "@/lib/telegram";
+import { haalSocialMediaAdminViaChatId } from "@/lib/socialMedia/admin";
+import { archiveerConcept, keurConceptGoed } from "@/lib/socialMedia/repository";
 import {
   bevatVerbodenActie,
   bouwLocatieKeyboard,
@@ -99,6 +101,39 @@ async function stuurLocatieKeuze(chatId: number, tekst: string, kandidaten: Gevo
     body: JSON.stringify({ chat_id: chatId, text: tekst, reply_markup: bouwLocatieKeyboard(kandidaten) }),
   });
   if (!res.ok) console.error("[telegram] sendMessage met keyboard mislukt:", res.status, await res.text());
+}
+
+/**
+ * Verwerkt een klik op "✅ Goedkeuren"/"❌ Afwijzen" onder een socialmedia-
+ * goedkeuringsverzoek (5 aug 2026, zie lib/socialMedia/telegramGoedkeuring.ts
+ * voor de kant die dit bericht verstuurt). Geeft `null` terug als `data`
+ * niet bij deze flow hoort, zodat de aanroeper daarna gewoon de bestaande
+ * "loc:"-afhandeling kan proberen.
+ *
+ * Beveiliging: haalSocialMediaAdminViaChatId toetst deze chat_id tegen
+ * dezelfde SOCIAL_MEDIA_ADMIN_EMAILS-lijst als de beheerpagina — een
+ * willekeurige Telegram-gebruiker die deze callback_data zou weten te raden
+ * (36-teken-UUID, praktisch onraadbaar, maar toch) kan hier nooit iets mee
+ * zonder een gekoppeld beheerdersaccount.
+ */
+async function verwerkSocialGoedkeuringCallback(chatId: number, data: string): Promise<string | null> {
+  const match = /^(smgoed|smafw):([0-9a-f-]{36})$/i.exec(data);
+  if (!match) return null;
+  const [, actie, id] = match;
+
+  const admin = await haalSocialMediaAdminViaChatId(chatId);
+  if (!admin) return "Deze actie is alleen voor beheerders.";
+
+  try {
+    if (actie === "smgoed") {
+      await keurConceptGoed(id, admin.id, null);
+      return "✅ Goedgekeurd — de worker publiceert 'm zo snel mogelijk.";
+    }
+    await archiveerConcept(id, admin.id);
+    return "❌ Afgewezen en gearchiveerd.";
+  } catch (fout) {
+    return `Kon dit niet verwerken: ${fout instanceof Error ? fout.message : String(fout)}`;
+  }
 }
 
 async function beantwoordCallback(callbackQueryId: string) {
@@ -260,6 +295,13 @@ export async function POST(req: NextRequest) {
     await beantwoordCallback(cq.id);
     const chatId = cq.message?.chat.id;
     const data = cq.data;
+
+    if (chatId && data && (data.startsWith("smgoed:") || data.startsWith("smafw:"))) {
+      const antwoord = await verwerkSocialGoedkeuringCallback(chatId, data);
+      if (antwoord) await stuurTelegramBericht(chatId, antwoord);
+      return NextResponse.json({ ok: true });
+    }
+
     if (!chatId || !data?.startsWith("loc:")) return NextResponse.json({ ok: true });
 
     const profiel = await haalProfielOp(admin, chatId);

@@ -30,11 +30,47 @@ Alles werkt meteen; login/betalen tonen nette meldingen i.p.v. te crashen.
 toont het concept zonder iets op te slaan. Zonder `--dry-run` wordt maximaal
 één concept met status `pending_approval` opgeslagen. Beoordelen en plannen
 gebeurt via `/beheer/social-media`; alleen e-mailadressen uit
-`SOCIAL_MEDIA_ADMIN_EMAILS` hebben toegang. Deze MVP bevat bewust nog geen
-Meta-token of publicatiestap en kan dus niets automatisch publiceren.
-De bestaande introductiepost geldt als nummer 1. `npm run social:plan-launch`
-plant de vier resterende launchposts idempotent om de drie dagen in
-goedkeuringsmodus.
+`SOCIAL_MEDIA_ADMIN_EMAILS` hebben toegang. De bestaande introductiepost geldt
+als nummer 1. `npm run social:plan-launch` plant de vier resterende launchposts
+idempotent om de drie dagen in goedkeuringsmodus.
+
+Na goedkeuring publiceert `npm run social:publish` verschuldigde posts
+organisch op Instagram en Facebook. De worker rendert de vaste SVG-huisstijl
+naar publieke 1080x1080-JPEG's in de Supabase Storage-bucket `social-media`,
+publiceert via de Meta Graph API en bewaart per platform het externe post-id.
+Een atomaire databaseclaim voorkomt dubbele verwerking door gelijktijdige
+workers. Tijdelijke fouten krijgen begrensde retries; een onduidelijke fout op
+de definitieve Meta-publish-call wordt bewust niet automatisch herhaald.
+
+Voor de Meta-koppeling zijn op de worker nodig:
+
+```env
+META_GRAPH_API_VERSION=v26.0
+META_ACCESS_TOKEN=<niet-verlopende System User-token>
+META_FACEBOOK_PAGE_ID=<numeriek pagina-id>
+META_INSTAGRAM_ACCOUNT_ID=<numeriek professioneel Instagram-account-id>
+SOCIAL_MEDIA_BUCKET=social-media
+SOCIAL_MEDIA_WORKER_ID=vrijebaan-vps
+```
+
+Gebruik uitsluitend een zakelijke Meta System User met toegang tot de pagina
+en app. De worker leidt daar per run het vereiste Page Access Token uit af; sla
+dus de System User-token op, niet een handmatig gekopieerd paginatoken. Voor
+organisch publiceren zijn `pages_show_list`,
+`pages_read_engagement`, `pages_manage_posts`, `instagram_basic` en
+`instagram_content_publish` nodig; advertentierechten zijn niet nodig. Zet het
+token nooit in een `NEXT_PUBLIC_`-variabele of in Git. Controleer de koppeling
+zonder een post te claimen met:
+
+```bash
+npm run social:meta-check
+```
+
+Op de VPS kunnen de meegeleverde units uit `scripts/systemd/` worden geplaatst
+in `/etc/systemd/system/`. Activeer pas na een geslaagde `social:meta-check` de
+timer met `sudo systemctl enable --now vrijebaan-social-publish.timer`. De timer
+controleert elke minuut; alleen goedgekeurde posts zonder gepland tijdstip en
+geplande posts waarvan het tijdstip verstreken is, worden gepubliceerd.
 
 ## Docker
 ```bash

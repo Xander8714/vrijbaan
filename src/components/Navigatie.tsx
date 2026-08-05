@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useGebruiker } from "@/lib/useGebruiker";
 import { supabaseBrowser } from "@/lib/supabase/client";
+
+type NavigatieInfo = { isBeheerder: boolean };
 
 // Vaste tabbladen bovenaan elke pagina.
 //
@@ -31,6 +33,38 @@ export default function Navigatie() {
   const router = useRouter();
   const gebruiker = useGebruiker();
   const [open, setOpen] = useState(false);
+  const [navInfo, setNavInfo] = useState<NavigatieInfo | null>(null);
+
+  // Beheerrecht ophalen zodra er een sessie is (5 aug 2026, zie
+  // api/account/navigatie/route.ts). Op `gebruiker?.id` i.p.v. `gebruiker`
+  // zelf, anders vuurt dit ook bij elke tokenverversing opnieuw (nieuw
+  // sessie-object, zelfde gebruiker).
+  const gebruikerId = gebruiker?.id;
+
+  // navInfo leegmaken zodra er geen sessie meer is gebeurt hier tijdens het
+  // renderen zelf (zelfde patroon als vorigPad verderop) i.p.v. als eerste
+  // regel in het effect eronder — react-hooks/set-state-in-effect verbiedt
+  // een setState die synchroon (niet in een callback) in een effect-body
+  // staat.
+  const [vorigeGebruikerId, setVorigeGebruikerId] = useState(gebruikerId);
+  if (gebruikerId !== vorigeGebruikerId) {
+    setVorigeGebruikerId(gebruikerId);
+    if (!gebruikerId) setNavInfo(null);
+  }
+
+  useEffect(() => {
+    if (!gebruikerId) return;
+    let actief = true;
+    fetch("/api/account/navigatie")
+      .then((r) => r.json())
+      .then((data: { ingelogd: boolean; isBeheerder?: boolean }) => {
+        if (actief && data.ingelogd) setNavInfo({ isBeheerder: !!data.isBeheerder });
+      })
+      .catch(() => {});
+    return () => {
+      actief = false;
+    };
+  }, [gebruikerId]);
 
   const uitloggen = async () => {
     setOpen(false);
@@ -68,6 +102,15 @@ export default function Navigatie() {
           {TABBLADEN.map((tab) => (
             <Tabblad key={tab.href} href={tab.href} label={tab.label} actief={isActief(pad, tab.href)} />
           ))}
+          {/* Alleen zichtbaar mét beheerrecht (5 aug 2026, Xander: "maak voor
+              als je rechten hebt ook een tabblad aan") — de check zelf leunt
+              op api/account/navigatie/route.ts, die op zijn beurt dezelfde
+              haalSocialMediaAdmin() hergebruikt als de pagina achter deze
+              link. Voor iedereen zonder rechten bestaat dit tabblad niet, en
+              de link daarachter blijft sowieso ook zelf achter notFound(). */}
+          {navInfo?.isBeheerder && (
+            <Tabblad href="/beheer/social-media" label="Beheer" actief={isActief(pad, "/beheer")} />
+          )}
           {gebruiker !== undefined && (
             <>
               <Tabblad
@@ -114,6 +157,9 @@ export default function Navigatie() {
             {TABBLADEN.map((tab) => (
               <Tabblad key={tab.href} href={tab.href} label={tab.label} actief={isActief(pad, tab.href)} volledigeBreedte />
             ))}
+            {navInfo?.isBeheerder && (
+              <Tabblad href="/beheer/social-media" label="Beheer" actief={isActief(pad, "/beheer")} volledigeBreedte />
+            )}
             {gebruiker !== undefined && (
               <>
                 <Tabblad

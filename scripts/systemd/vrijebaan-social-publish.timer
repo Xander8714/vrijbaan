@@ -1,0 +1,12 @@
+[Unit]
+Description=Controleer elke minuut op goedgekeurde VrijeBaan-socialmediaposts
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=vrijebaan-social-publish.service
+
+[Install]
+WantedBy=timers.target

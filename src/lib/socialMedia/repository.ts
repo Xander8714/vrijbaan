@@ -1,7 +1,15 @@
 import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
+import { alleTestregioClubs } from "@/lib/stadsPaginas";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { bouwBeschikbaarheidsConcept, HERHALINGSVENSTER_DAGEN, kiesInteressantsteBeschikbaarheid } from "./generator";
+import {
+  bouwBeschikbaarheidsConcept,
+  bouwDagelijkseTellingConcept,
+  HERHALINGSVENSTER_DAGEN,
+  kiesDagelijkseTelling,
+  kiesInteressantsteBeschikbaarheid,
+} from "./generator";
 import { LAUNCH_CAMPAGNE } from "./campaign";
+import { meldNieuwConceptViaTelegram } from "./telegramGoedkeuring";
 import type { BeschikbaarheidsKandidaat, BeschikbaarheidsSlot, GegenereerdConcept, SocialPostStatus, SocialVisual } from "./types";
 
 const DAGEN_VOORUIT = 7;
@@ -18,10 +26,13 @@ export type SocialPostVoorBeheer = {
   visual: SocialVisual;
   scheduledFor: string | null;
   approvedAt: string | null;
+  publishedAt: string | null;
   createdAt: string;
   sourceUpdatedAt: string | null;
   platforms: string[];
   lastError: string | null;
+  externalPostIds: Record<string, string>;
+  nextRetryAt: string | null;
 };
 
 function isoDatum(datum: Date): string {
@@ -70,6 +81,38 @@ async function haalBeschikbaarheidsKandidaten(nu: Date): Promise<Beschikbaarheid
   });
 }
 
+/**
+ * Alleen de testregio-clubs (6 steden, 5 aug 2026 — Xander: "alleen je
+ * testeden" i.p.v. heel Nederland) uit een club_beschikbaarheid-rijenlijst
+ * halen, voor de dagelijkse tellingpost.
+ */
+async function haalKandidatenVoorTelling(nu: Date): Promise<BeschikbaarheidsKandidaat[]> {
+  const supabase = supabaseAdmin();
+  const testregioIds = new Set(alleTestregioClubs().map((club) => club.id));
+  const { data, error } = await supabase
+    .from("club_beschikbaarheid")
+    .select("club_id, datum, slots, bijgewerkt_op")
+    .eq("datum", isoDatum(nu));
+  if (error) throw new Error(`Beschikbaarheid lezen (telling) mislukt: ${error.message}`);
+
+  const clubs = new Map(CLUBS_INCLUSIEF_LEDENCLUBS.map((club) => [club.id, club]));
+  return (data ?? []).flatMap((rij): BeschikbaarheidsKandidaat[] => {
+    const clubId = rij.club_id as string;
+    if (!testregioIds.has(clubId)) return [];
+    const club = clubs.get(clubId);
+    const sloten = normaliseerSloten(rij.slots);
+    if (!club || sloten.length === 0) return [];
+    return [{
+      clubId: club.id,
+      clubNaam: club.naam,
+      stad: club.plaats,
+      datum: String(rij.datum),
+      bijgewerktOp: String(rij.bijgewerkt_op),
+      sloten,
+    }];
+  });
+}
+
 async function haalRecentGebruikteClubs(nu: Date): Promise<Set<string>> {
   const vanaf = new Date(nu);
   vanaf.setUTCDate(vanaf.getUTCDate() - HERHALINGSVENSTER_DAGEN);
@@ -93,9 +136,13 @@ export async function genereerConceptVoorbeeld(nu: Date = new Date()): Promise<G
   return bouwBeschikbaarheidsConcept(kandidaat);
 }
 
-export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<string> {
-  const concept = await genereerConceptVoorbeeld(nu);
-
+/**
+ * Gedeelde opslagstap voor elk concepttype (beschikbaarheid, telling, en de
+ * campagneposts die hun eigen insert hebben) — was eerst alleen inline in
+ * genereerEnBewaarConcept, maar de dagelijkse tellingpost (5 aug 2026) heeft
+ * exact dezelfde dubbelcheck-en-insert nodig, dus hier één keer.
+ */
+async function bewaarConcept(concept: GegenereerdConcept, nu: Date): Promise<string> {
   const { data: bestaand, error: zoekFout } = await supabaseAdmin()
     .from("social_media_posts")
     .select("id")
@@ -103,7 +150,7 @@ export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<st
     .neq("status", "archived")
     .maybeSingle();
   if (zoekFout) throw new Error(`Dubbelcheck van onderwerp mislukt: ${zoekFout.message}`);
-  if (bestaand) throw new Error("Voor deze club en datum bestaat al een actief concept.");
+  if (bestaand) throw new Error("Voor dit onderwerp bestaat al een actief concept.");
 
   const { data, error } = await supabaseAdmin()
     .from("social_media_posts")
@@ -127,6 +174,29 @@ export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<st
     .single();
   if (error) throw new Error(`Concept opslaan mislukt: ${error.message}`);
   return data.id as string;
+}
+
+export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<string> {
+  const concept = await genereerConceptVoorbeeld(nu);
+  const id = await bewaarConcept(concept, nu);
+  await meldNieuwConceptViaTelegram(id, concept);
+  return id;
+}
+
+export async function genereerConceptVoorbeeldTelling(nu: Date = new Date()): Promise<GegenereerdConcept> {
+  const kandidaten = await haalKandidatenVoorTelling(nu);
+  const kandidaat = kiesDagelijkseTelling(kandidaten, isoDatum(nu), nu);
+  if (!kandidaat) {
+    throw new Error("Nog niet genoeg testregio-clubs met een vrije plek op hetzelfde moment vandaag voor een tellingpost.");
+  }
+  return bouwDagelijkseTellingConcept(kandidaat);
+}
+
+export async function genereerEnBewaarTellingConcept(nu: Date = new Date()): Promise<string> {
+  const concept = await genereerConceptVoorbeeldTelling(nu);
+  const id = await bewaarConcept(concept, nu);
+  await meldNieuwConceptViaTelegram(id, concept);
+  return id;
 }
 
 export async function planLaunchCampagne(nu: Date = new Date()): Promise<{ aangemaakt: number; overgeslagen: number }> {
@@ -168,7 +238,7 @@ export async function planLaunchCampagne(nu: Date = new Date()): Promise<{ aange
 export async function haalSocialPostsVoorBeheer(): Promise<SocialPostVoorBeheer[]> {
   const { data, error } = await supabaseAdmin()
     .from("social_media_posts")
-    .select("id, status, content_type, subject_key, city, club_id, caption, hashtags, visual, scheduled_for, approved_at, created_at, source_updated_at, platforms, last_error")
+    .select("id, status, content_type, subject_key, city, club_id, caption, hashtags, visual, scheduled_for, approved_at, published_at, created_at, source_updated_at, platforms, external_post_ids, last_error, next_retry_at")
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw new Error(`Socialposts lezen mislukt: ${error.message}`);
@@ -184,10 +254,13 @@ export async function haalSocialPostsVoorBeheer(): Promise<SocialPostVoorBeheer[
     visual: rij.visual as SocialVisual,
     scheduledFor: rij.scheduled_for as string | null,
     approvedAt: rij.approved_at as string | null,
+    publishedAt: rij.published_at as string | null,
     createdAt: rij.created_at as string,
     sourceUpdatedAt: rij.source_updated_at as string | null,
     platforms: (rij.platforms as string[]) ?? [],
     lastError: rij.last_error as string | null,
+    externalPostIds: (rij.external_post_ids as Record<string, string> | null) ?? {},
+    nextRetryAt: rij.next_retry_at as string | null,
   }));
 }
 
