@@ -5,8 +5,9 @@ import { CLUBS, LEDEN_CLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
+import { begrensZoekstraalVoorDatum, binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
+import { leesJsonRespons } from "@/lib/jsonResponse";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
 
@@ -24,13 +25,19 @@ const GRATIS_LIMIET = 1;
 const OPSLAG_SLEUTEL = "vrijbaan-zoekgebied";
 const MARGE_OPTIES = [1, 2, 3];
 
-// Zelfde grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts — hier
-// nogmaals, zodat de UI al vóór het verzoek kan zeggen dat het te veel is.
+// Totaal aantal clubs dat één zoekactie mag tonen. De API wordt hieronder in
+// kleinere reeksen aangeroepen, zodat elke losse aanvraag onder de proxytimeout
+// blijft en resultaten geleidelijk binnenkomen.
 const MAX_ZICHTBAAR = 20;
+const API_BATCH_GROOTTE = 4;
 
 type Slot = { tijd: string; prijs: string | null };
 type Meting = { sloten: Slot[]; fout?: string };
 type Zoekgebied = { lat: number; lon: number; plaatsnaam: string; straalKm: number };
+type BeschikbaarheidRespons = {
+  beschikbaarheid: { clubId: string; sloten: Slot[]; fout?: string }[];
+  opgehaaldOp?: string;
+};
 
 export default function RadarPage() {
   const [gevolgd, setGevolgd] = useState<Set<string>>(new Set());
@@ -276,6 +283,9 @@ export default function RadarPage() {
     [isPro]
   );
 
+  const straalVoorDatum = begrensZoekstraalVoorDatum(straalKm, gekozenDatum);
+  const straalBegrensdVoorDatum = straalVoorDatum < straalKm;
+
   /**
    * Op afstand filteren. Dit bepaalt óók welke clubs we live opvragen, dus het
    * moet vóór dat effect staan.
@@ -290,9 +300,9 @@ export default function RadarPage() {
     if (!zoekgebied) return kandidaatClubs.map((club) => ({ ...club, afstandKm: null as number | null }));
     return kandidaatClubs
       .map((club) => ({ ...club, afstandKm: afgerondeAfstand({ lat: zoekgebied.lat, lon: zoekgebied.lon }, club) }))
-      .filter((club) => club.afstandKm <= straalKm || gevolgd.has(club.id))
+      .filter((club) => club.afstandKm <= straalVoorDatum || gevolgd.has(club.id))
       .sort((a, b) => a.afstandKm - b.afstandKm);
-  }, [kandidaatClubs, zoekgebied, straalKm, gevolgd]);
+  }, [kandidaatClubs, zoekgebied, straalVoorDatum, gevolgd]);
 
   /**
    * Zitten er meer dan MAX_ZICHTBAAR clubs in de gekozen straal, dan versmallen
@@ -317,7 +327,7 @@ export default function RadarPage() {
   // zonder de gemelde straal op te rekken.
   const effectieveStraalKm = teVeelInStraal
     ? Math.round(Math.max(0, ...clubsOmTeTonen.filter((c) => !gevolgd.has(c.id)).map((c) => c.afstandKm ?? 0)))
-    : straalKm;
+    : straalVoorDatum;
 
   /**
    * Beschikbaarheid halen we op voor precies clubsOmTeTonen, niet voor alle
@@ -364,19 +374,22 @@ export default function RadarPage() {
       setMetingBezig(true);
       setMetingFout(null);
       try {
-        const res = await fetch(
-          `/api/beschikbaarheid?datum=${gekozenDatum}&clubs=${encodeURIComponent(ids.join(","))}`,
-          { signal: controller.signal }
-        );
-        const data = await res.json();
-        if (controller.signal.aborted) return;
-        if (!res.ok) { setMetingFout(data.error ?? "Ophalen mislukt."); setMetingBezig(false); return; }
-        const map = new Map<string, Meting>();
-        for (const rij of data.beschikbaarheid as { clubId: string; sloten: Slot[]; fout?: string }[]) {
-          map.set(`${rij.clubId}|${gekozenDatum}`, { sloten: rij.sloten, fout: rij.fout });
+        for (let i = 0; i < ids.length; i += API_BATCH_GROOTTE) {
+          const batchIds = ids.slice(i, i + API_BATCH_GROOTTE);
+          const res = await fetch(
+            `/api/beschikbaarheid?datum=${gekozenDatum}&clubs=${encodeURIComponent(batchIds.join(","))}`,
+            { signal: controller.signal }
+          );
+          const data = await leesJsonRespons<BeschikbaarheidRespons>(res);
+          if (controller.signal.aborted) return;
+
+          const map = new Map<string, Meting>();
+          for (const rij of data.beschikbaarheid) {
+            map.set(`${rij.clubId}|${gekozenDatum}`, { sloten: rij.sloten, fout: rij.fout });
+          }
+          setMetingen((vorige) => new Map([...vorige, ...map]));
+          setOpgehaaldOp(data.opgehaaldOp ?? null);
         }
-        setMetingen((vorige) => new Map([...vorige, ...map]));
-        setOpgehaaldOp(data.opgehaaldOp ?? null);
         setMetingBezig(false);
       } catch (e) {
         if (controller.signal.aborted) return; // zelf afgebroken — geen foutmelding, dat is geen mislukking
@@ -458,7 +471,7 @@ export default function RadarPage() {
       lat: String(zoekgebied.lat),
       lon: String(zoekgebied.lon),
       plaats: zoekgebied.plaatsnaam,
-      straal: String(straalKm),
+      straal: String(effectieveStraalKm),
       datum: gekozenDatum,
     });
     if (voorkeurstijd) params.set("tijd", voorkeurstijd);
@@ -834,6 +847,13 @@ export default function RadarPage() {
             </button>
           ))}
         </div>
+
+        {straalBegrensdVoorDatum && (
+          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Voor een datum verder dan drie dagen zoekt de Radar maximaal {straalVoorDatum} km rondom je locatie.
+            Zo blijft live ophalen betrouwbaar; je opgeslagen straal van {straalKm} km verandert niet.
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-end gap-4">
           <div>

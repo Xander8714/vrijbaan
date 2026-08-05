@@ -15,10 +15,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * POLL_CONFIG zou een volledige ronde ruim een uur duren — onbruikbaar. Door
  * alleen de zichtbare selectie op te halen, betaal je alleen voor wat je bekijkt.
  *
- * MAX_CLUBS is daarom een harde grens: boven de 20 clubs geeft deze route een
- * duidelijke fout terug in plaats van een verzoek van minuten te starten. De UI
- * vraagt de gebruiker dan zijn selectie te verkleinen (kleinere straal of een
- * voorkeurstijd).
+ * MAX_CLUBS is daarom een harde grens per HTTP-verzoek. De Radar verdeelt een
+ * grotere zichtbare selectie in reeksen van vier. Zo duurt één nginx-request
+ * nooit meerdere browsergolven en verschijnen resultaten geleidelijk.
  *
  * Let op: browser-gebaseerde bronnen (Playtomic, Meet & Play) draaien Playwright
  * en kunnen daarom niet in de Edge-runtime.
@@ -26,7 +25,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const MAX_CLUBS = 20;
+export const MAX_CLUBS = 4;
 
 // Hoeveel bronnen we tegelijk aanspreken. Elke Playwright-run kost een eigen
 // browserproces, dus dit is een afweging tussen snelheid en geheugen.
@@ -299,8 +298,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          `${clubIds.length} clubs is te veel om live op te halen (maximaal ${MAX_CLUBS}). ` +
-          "Maak je selectie kleiner met een kleinere straal of een voorkeurstijd.",
+          `${clubIds.length} clubs is te veel voor één live aanvraag (maximaal ${MAX_CLUBS}). ` +
+          "Verdeel de aanvraag in kleinere reeksen.",
         teVeel: true,
         aantal: clubIds.length,
         maximum: MAX_CLUBS,

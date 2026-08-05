@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { naarMinuten, binnenTijdvenster, komendeDagen, dagLabel } from "../tijd";
+import { begrensZoekstraalVoorDatum, naarMinuten, binnenTijdvenster, komendeDagen, dagLabel } from "../tijd";
 
 describe("naarMinuten", () => {
   it("rekent uren en minuten om", () => {
@@ -72,5 +72,21 @@ describe("dagLabel", () => {
 
   it("valt daarna terug op een korte datum", () => {
     expect(dagLabel("2026-08-01", 3)).toMatch(/aug/);
+  });
+});
+
+describe("begrensZoekstraalVoorDatum", () => {
+  const vandaag = new Date(2026, 7, 5, 12, 0);
+
+  it("behoudt de gekozen straal binnen het driedaagse cachevenster", () => {
+    expect(begrensZoekstraalVoorDatum(10, "2026-08-07", vandaag)).toBe(10);
+  });
+
+  it("begrenst een grote straal verder vooruit tot 5 km", () => {
+    expect(begrensZoekstraalVoorDatum(10, "2026-08-12", vandaag)).toBe(5);
+  });
+
+  it("vergroot een al kleine straal niet", () => {
+    expect(begrensZoekstraalVoorDatum(4, "2026-08-12", vandaag)).toBe(4);
   });
 });

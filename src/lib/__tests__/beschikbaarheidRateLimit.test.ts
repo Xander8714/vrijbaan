@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { magDoor, RATE_LIMIT_MAX_VERZOEKEN, RATE_LIMIT_VENSTER_MS } from "../../app/api/beschikbaarheid/route";
+import { magDoor, MAX_CLUBS, RATE_LIMIT_MAX_VERZOEKEN, RATE_LIMIT_VENSTER_MS } from "../../app/api/beschikbaarheid/route";
 
 // magDoor deelt één module-brede Map — elke test gebruikt een eigen unieke
 // "IP" i.p.v. de Map te resetten, zodat tests elkaar nooit beïnvloeden.
@@ -7,6 +7,10 @@ let teller = 0;
 const nieuwIp = () => `test-ip-${(teller += 1)}`;
 
 describe("beschikbaarheid-route rate limiting (5 aug 2026, security-assessment)", () => {
+  it("beperkt één live aanvraag tot één browserbatch", () => {
+    expect(MAX_CLUBS).toBe(4);
+  });
+
   it("laat verzoeken door tot aan de limiet", () => {
     const ip = nieuwIp();
     const nu = 1_000_000;
