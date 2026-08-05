@@ -16,10 +16,22 @@ Alles werkt meteen; login/betalen tonen nette meldingen i.p.v. te crashen.
 
 ## Volledige functionaliteit (login, opslaan, betalen)
 1. Gratis project op supabase.com, keys in `.env.local` (kopieer `.env.example`).
+   Voeg voor het afgeschermde socialmediabeheer ook `SOCIAL_MEDIA_ADMIN_EMAILS`
+   toe als komma-gescheiden allowlist. Zonder deze variabele blijft
+   `/beheer/social-media` voor iedereen gesloten.
 2. Voer `supabase/schema.sql` én de bestanden in `supabase/migraties/` uit in
    de Supabase SQL editor (in datumvolgorde).
 3. Stripe test-account, product "VrijeBaan Pro", keys in `.env.local`.
 4. Lokaal webhook testen: `stripe listen --forward-to localhost:3000/api/webhook`.
+
+## Socialmedia-agent (goedkeuringsmodus)
+
+`npm run social:generate -- --dry-run` selecteert actuele beschikbaarheid en
+toont het concept zonder iets op te slaan. Zonder `--dry-run` wordt maximaal
+één concept met status `pending_approval` opgeslagen. Beoordelen en plannen
+gebeurt via `/beheer/social-media`; alleen e-mailadressen uit
+`SOCIAL_MEDIA_ADMIN_EMAILS` hebben toegang. Deze MVP bevat bewust nog geen
+Meta-token of publicatiestap en kan dus niets automatisch publiceren.
 
 ## Docker
 ```bash

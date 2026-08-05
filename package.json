@@ -16,7 +16,8 @@
     "discover:meetandplay": "tsx scripts/discover-meetandplay-clubs.ts",
     "check": "tsx scripts/check-beschikbaarheid.ts",
     "ververs:clubdata": "tsx scripts/ververs-clubdata.ts",
-    "opschonen:beschikbaarheid": "tsx scripts/opschonen-beschikbaarheid.ts"
+    "opschonen:beschikbaarheid": "tsx scripts/opschonen-beschikbaarheid.ts",
+    "social:generate": "tsx scripts/generate-social-post.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

@@ -1,0 +1,210 @@
+import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { bouwBeschikbaarheidsConcept, HERHALINGSVENSTER_DAGEN, kiesInteressantsteBeschikbaarheid } from "./generator";
+import type { BeschikbaarheidsKandidaat, BeschikbaarheidsSlot, GegenereerdConcept, SocialPostStatus, SocialVisual } from "./types";
+
+const DAGEN_VOORUIT = 7;
+
+export type SocialPostVoorBeheer = {
+  id: string;
+  status: SocialPostStatus;
+  contentType: string;
+  subjectKey: string;
+  city: string | null;
+  clubId: string | null;
+  caption: string;
+  hashtags: string[];
+  visual: SocialVisual;
+  scheduledFor: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  sourceUpdatedAt: string | null;
+  platforms: string[];
+  lastError: string | null;
+};
+
+function isoDatum(datum: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Europe/Amsterdam",
+  }).format(datum);
+}
+
+function normaliseerSloten(waarde: unknown): BeschikbaarheidsSlot[] {
+  if (!Array.isArray(waarde)) return [];
+  return waarde.flatMap((slot) => {
+    if (!slot || typeof slot !== "object") return [];
+    const item = slot as Record<string, unknown>;
+    if (typeof item.startTime !== "string" || !/^\d{2}:\d{2}$/.test(item.startTime)) return [];
+    return [{ startTime: item.startTime, prijs: typeof item.prijs === "string" ? item.prijs : null }];
+  });
+}
+
+async function haalBeschikbaarheidsKandidaten(nu: Date): Promise<BeschikbaarheidsKandidaat[]> {
+  const supabase = supabaseAdmin();
+  const einddatum = new Date(nu);
+  einddatum.setUTCDate(einddatum.getUTCDate() + DAGEN_VOORUIT);
+  const { data, error } = await supabase
+    .from("club_beschikbaarheid")
+    .select("club_id, datum, slots, bijgewerkt_op")
+    .gte("datum", isoDatum(nu))
+    .lte("datum", isoDatum(einddatum));
+  if (error) throw new Error(`Beschikbaarheid lezen mislukt: ${error.message}`);
+
+  const clubs = new Map(CLUBS_INCLUSIEF_LEDENCLUBS.map((club) => [club.id, club]));
+  return (data ?? []).flatMap((rij): BeschikbaarheidsKandidaat[] => {
+    const club = clubs.get(rij.club_id as string);
+    const sloten = normaliseerSloten(rij.slots);
+    if (!club || sloten.length === 0) return [];
+    return [{
+      clubId: club.id,
+      clubNaam: club.naam,
+      stad: club.plaats,
+      datum: String(rij.datum),
+      bijgewerktOp: String(rij.bijgewerkt_op),
+      sloten,
+    }];
+  });
+}
+
+async function haalRecentGebruikteClubs(nu: Date): Promise<Set<string>> {
+  const vanaf = new Date(nu);
+  vanaf.setUTCDate(vanaf.getUTCDate() - HERHALINGSVENSTER_DAGEN);
+  const { data, error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("club_id")
+    .gte("created_at", vanaf.toISOString())
+    .neq("status", "archived")
+    .not("club_id", "is", null);
+  if (error) throw new Error(`Recente socialposts lezen mislukt: ${error.message}`);
+  return new Set((data ?? []).map((rij) => rij.club_id as string));
+}
+
+export async function genereerConceptVoorbeeld(nu: Date = new Date()): Promise<GegenereerdConcept> {
+  const [kandidaten, recent] = await Promise.all([
+    haalBeschikbaarheidsKandidaten(nu),
+    haalRecentGebruikteClubs(nu),
+  ]);
+  const kandidaat = kiesInteressantsteBeschikbaarheid(kandidaten, recent, nu);
+  if (!kandidaat) throw new Error("Geen geschikte actuele beschikbaarheid gevonden die niet recent is gebruikt.");
+  return bouwBeschikbaarheidsConcept(kandidaat);
+}
+
+export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<string> {
+  const concept = await genereerConceptVoorbeeld(nu);
+
+  const { data: bestaand, error: zoekFout } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("id")
+    .eq("subject_key", concept.subjectKey)
+    .neq("status", "archived")
+    .maybeSingle();
+  if (zoekFout) throw new Error(`Dubbelcheck van onderwerp mislukt: ${zoekFout.message}`);
+  if (bestaand) throw new Error("Voor deze club en datum bestaat al een actief concept.");
+
+  const { data, error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .insert({
+      status: concept.status,
+      content_type: concept.contentType,
+      subject_key: concept.subjectKey,
+      subject_type: concept.subjectType,
+      subject_id: concept.subjectId,
+      city: concept.city,
+      club_id: concept.clubId,
+      caption: concept.caption,
+      hashtags: concept.hashtags,
+      visual: concept.visual,
+      data_snapshot: concept.dataSnapshot,
+      source_updated_at: concept.sourceUpdatedAt,
+      platforms: concept.platforms,
+      log: [{ at: nu.toISOString(), event: "concept_generated", mode: "approval" }],
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`Concept opslaan mislukt: ${error.message}`);
+  return data.id as string;
+}
+
+export async function haalSocialPostsVoorBeheer(): Promise<SocialPostVoorBeheer[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("id, status, content_type, subject_key, city, club_id, caption, hashtags, visual, scheduled_for, approved_at, created_at, source_updated_at, platforms, last_error")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(`Socialposts lezen mislukt: ${error.message}`);
+  return (data ?? []).map((rij) => ({
+    id: rij.id as string,
+    status: rij.status as SocialPostStatus,
+    contentType: rij.content_type as string,
+    subjectKey: rij.subject_key as string,
+    city: rij.city as string | null,
+    clubId: rij.club_id as string | null,
+    caption: rij.caption as string,
+    hashtags: (rij.hashtags as string[]) ?? [],
+    visual: rij.visual as SocialVisual,
+    scheduledFor: rij.scheduled_for as string | null,
+    approvedAt: rij.approved_at as string | null,
+    createdAt: rij.created_at as string,
+    sourceUpdatedAt: rij.source_updated_at as string | null,
+    platforms: (rij.platforms as string[]) ?? [],
+    lastError: rij.last_error as string | null,
+  }));
+}
+
+export async function haalSocialPostVisual(id: string): Promise<SocialVisual | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("visual")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Socialvisual lezen mislukt: ${error.message}`);
+  return (data?.visual as SocialVisual | undefined) ?? null;
+}
+
+export async function keurConceptGoed(id: string, adminId: string, geplandVoor: string | null): Promise<void> {
+  const nu = new Date().toISOString();
+  const { data: huidig, error: leesFout } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("log")
+    .eq("id", id)
+    .eq("status", "pending_approval")
+    .maybeSingle();
+  if (leesFout) throw new Error(`Concept lezen mislukt: ${leesFout.message}`);
+  if (!huidig) throw new Error("Concept bestaat niet of is al verwerkt.");
+  const log = Array.isArray(huidig.log) ? huidig.log : [];
+  const { error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .update({
+      status: geplandVoor ? "scheduled" : "approved",
+      approved_by: adminId,
+      approved_at: nu,
+      scheduled_for: geplandVoor,
+      updated_at: nu,
+      log: [...log, { at: nu, event: geplandVoor ? "scheduled" : "approved", by: adminId }],
+    })
+    .eq("id", id)
+    .eq("status", "pending_approval");
+  if (error) throw new Error(`Concept goedkeuren mislukt: ${error.message}`);
+}
+
+export async function archiveerConcept(id: string, adminId: string): Promise<void> {
+  const nu = new Date().toISOString();
+  const { data: huidig, error: leesFout } = await supabaseAdmin()
+    .from("social_media_posts")
+    .select("log")
+    .eq("id", id)
+    .eq("status", "pending_approval")
+    .maybeSingle();
+  if (leesFout) throw new Error(`Concept lezen mislukt: ${leesFout.message}`);
+  if (!huidig) throw new Error("Concept bestaat niet of is al verwerkt.");
+  const log = Array.isArray(huidig.log) ? huidig.log : [];
+  const { error } = await supabaseAdmin()
+    .from("social_media_posts")
+    .update({ status: "archived", updated_at: nu, log: [...log, { at: nu, event: "archived", by: adminId }] })
+    .eq("id", id)
+    .eq("status", "pending_approval");
+  if (error) throw new Error(`Concept archiveren mislukt: ${error.message}`);
+}
