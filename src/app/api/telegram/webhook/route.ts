@@ -561,6 +561,14 @@ export async function POST(req: NextRequest) {
   // --- Geen actief gesprek: proberen als losse zoekopdracht te lezen ---
   const zoekopdracht = parseAdhocZoekopdracht(tekst);
   if (zoekopdracht) {
+    // Kalenderdatum herkend maar te ver vooruit (bv. "zoek 19 augustus...")
+    // — nooit stilzwijgend een andere dag zoeken, dat is precies de
+    // verwarring die Xander op de Radar tegenkwam met een deep link die een
+    // andere dag opleverde dan de link beloofde.
+    if (zoekopdracht.fout) {
+      await stuurTelegramBericht(chatId, zoekopdracht.fout);
+      return NextResponse.json({ ok: true });
+    }
     // parseAdhocZoekopdracht herkent tijden alleen in de striktere vormen
     // (20:00, 20u, om 20, …) om de plaats-extractie niet te verstoren (zie
     // extraheerPlaats in telegramConversatie.ts) — een compacte vorm als

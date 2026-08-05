@@ -29,7 +29,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CLUBS } from "./clubs";
 import { binnenStraal, zoekLocatiesPdok, type Coordinaat, type GevondenLocatie } from "./geo";
-import { binnenTijdvenster, dagLabel, naarMinuten, rondAfOpHalfUur } from "./tijd";
+import { binnenTijdvenster, dagLabel, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "./tijd";
 import { bouwSessieLink, maakInlogToken } from "./telegramSessie";
 
 const STRAAL_ADHOC_KM = 10;
@@ -113,13 +113,56 @@ export function extraheerTijd(tekst: string): string | null {
   return null;
 }
 
-/** "morgen"/"overmorgen"/"vandaag" in vrije tekst, of null (= geen expliciete dag genoemd). */
+// Nederlandse maandnamen voor expliciete kalenderdatums ("19 augustus") in
+// vrije tekst (5 aug 2026, Xander: "zoek 19 augustus een baan in haarlem om
+// 2030 - dat snapt de bot nu ook nog niet"). Reikt tot MAX_DAGEN_VOORUIT_ZOEKEN
+// dagen vooruit — zelfde grens als de Radar-deep-link-acceptatie (zie
+// src/lib/tijd.ts en radar/page.tsx), zodat de website en de bot nooit een
+// ander antwoord geven op "hoe ver vooruit mag ik zoeken". Geen afkortingen
+// ("19 aug") — bewust beperkt tot volledige maandnamen, dat dekt het gevraagde
+// geval en voorkomt een regex die per ongeluk iets anders opvangt.
+const MAANDNAMEN: Record<string, number> = {
+  januari: 0, februari: 1, maart: 2, april: 3, mei: 4, juni: 5,
+  juli: 6, augustus: 7, september: 8, oktober: 9, november: 10, december: 11,
+};
+export const KALENDERDATUM_RE =
+  /\b(\d{1,2})\s+(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\b/i;
+
+/**
+ * "19 augustus" → aantal dagen vanaf vandaag. Een datum die dit jaar al
+ * voorbij is wordt als volgend jaar gelezen (padel-zoekopdrachten gaan nooit
+ * meer dan een jaar vooruit, dus geen ambiguïteit). Ligt de datum verder dan
+ * MAX_DAGEN_VOORUIT_ZOEKEN: expliciet `teVer: true` teruggeven i.p.v.
+ * stilzwijgend null — anders zou de aanroeper terugvallen op "vandaag" zonder
+ * dat te melden, precies de verwarring die Xander op de Radar tegenkwam met
+ * een deep link die zomaar een andere dag opleverde dan de link beloofde.
+ */
+export function extraheerKalenderdatum(
+  tekst: string,
+  nu: Date = new Date()
+): { offset: number; teVer: false } | { offset: null; teVer: true } | null {
+  const m = KALENDERDATUM_RE.exec(tekst);
+  if (!m) return null;
+  const dag = Number(m[1]);
+  const maand = MAANDNAMEN[m[2].toLowerCase()];
+  if (dag < 1 || dag > 31) return null;
+
+  const vandaag = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate());
+  let kandidaat = new Date(nu.getFullYear(), maand, dag);
+  if (kandidaat < vandaag) kandidaat = new Date(nu.getFullYear() + 1, maand, dag);
+
+  const offset = Math.round((kandidaat.getTime() - vandaag.getTime()) / 86_400_000);
+  return offset > MAX_DAGEN_VOORUIT_ZOEKEN ? { offset: null, teVer: true } : { offset, teVer: false };
+}
+
+/** "morgen"/"overmorgen"/"vandaag"/een expliciete kalenderdatum in vrije tekst, of null (= geen dag genoemd of te ver vooruit). */
 export function extraheerDag(tekst: string): number | null {
   const t = tekst.toLowerCase();
   if (/\bovermorgen\b/.test(t)) return 2;
   if (/\bmorgen\b/.test(t)) return 1;
   if (/\bvandaag\b/.test(t)) return 0;
-  return null;
+  const kalender = extraheerKalenderdatum(tekst);
+  return kalender?.teVer ? null : (kalender?.offset ?? null);
 }
 
 // Woorden die overblijven na het wegstrippen van dag/tijd uit een
@@ -151,10 +194,20 @@ export function extraheerPlaats(tekst: string): string | null {
     );
   if (expliciet) return expliciet[1].trim();
 
-  const heeftSignaal = /padel|baan/i.test(tekst) || extraheerTijd(tekst) !== null || extraheerDag(tekst) !== null;
+  // extraheerKalenderdatum() apart van extraheerDag() gecheckt: een tè-ver-
+  // vooruit-datum geeft bij extraheerDag() null terug (zie daar), maar moet
+  // hier nog wél als signaal tellen — anders bereikt "zoek 19 augustus
+  // Haarlem" (geen ander padel/tijd-woord) parseAdhocZoekopdracht() nooit,
+  // en verschijnt de "te ver vooruit"-foutmelding daar dus nooit.
+  const heeftSignaal =
+    /padel|baan/i.test(tekst) ||
+    extraheerTijd(tekst) !== null ||
+    extraheerDag(tekst) !== null ||
+    extraheerKalenderdatum(tekst) !== null;
   if (!heeftSignaal) return null;
 
   let rest = tekst.replace(/\bovermorgen\b/gi, " ").replace(/\bmorgen\b/gi, " ").replace(/\bvandaag\b/gi, " ");
+  rest = rest.replace(KALENDERDATUM_RE, " ");
   for (const patroon of TIJD_PATRONEN) {
     rest = rest.replace(new RegExp(patroon.source, patroon.flags.includes("g") ? patroon.flags : `${patroon.flags}g`), " ");
   }
@@ -165,12 +218,29 @@ export function extraheerPlaats(tekst: string): string | null {
   return woorden.join(" ").trim();
 }
 
-export type AdhocZoekopdracht = { plaatsQuery: string; tijd: string | null; dagOffset: number | null };
+export type AdhocZoekopdracht = { plaatsQuery: string; tijd: string | null; dagOffset: number | null; fout?: string };
 
-/** Herkent "zoek een baan in <plaats> [rond/om <tijd>] [morgen/overmorgen]"-achtige berichten. */
-export function parseAdhocZoekopdracht(tekst: string): AdhocZoekopdracht | null {
+/**
+ * Herkent "zoek een baan in <plaats> [rond/om <tijd>] [morgen/overmorgen/19
+ * augustus]"-achtige berichten. Bij een kalenderdatum verder dan
+ * MAX_DAGEN_VOORUIT_ZOEKEN: `fout` gezet i.p.v. stilzwijgend een andere dag
+ * kiezen — de aanroeper (webhook-route) moet die dan tonen en de
+ * zoekopdracht NIET alsnog uitvoeren, zie de toelichting bij
+ * extraheerKalenderdatum hierboven.
+ */
+export function parseAdhocZoekopdracht(tekst: string, nu: Date = new Date()): AdhocZoekopdracht | null {
   const plaatsQuery = extraheerPlaats(tekst);
   if (!plaatsQuery) return null;
+
+  const kalender = extraheerKalenderdatum(tekst, nu);
+  if (kalender?.teVer) {
+    return {
+      plaatsQuery,
+      tijd: extraheerTijd(tekst),
+      dagOffset: null,
+      fout: `Ik kan maximaal ${MAX_DAGEN_VOORUIT_ZOEKEN} dagen vooruit zoeken. Kies een datum binnen die periode.`,
+    };
+  }
   return { plaatsQuery, tijd: extraheerTijd(tekst), dagOffset: extraheerDag(tekst) };
 }
 

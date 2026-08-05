@@ -31,6 +31,28 @@
  */
 export const DAGEN_VOORUIT = 7;
 
+/**
+ * Verste dag die we nog WEL proberen te doorzoeken buiten de zichtbare
+ * DAGEN_VOORUIT-knoppenrij om — deep links (Radar-URL's met een eigen
+ * `datum`-parameter) en Telegram-zoekopdrachten met een expliciete
+ * kalenderdatum ("zoek 19 augustus..."). 14, niet 7: zelfde Playtomic-
+ * onderzoek als bij DAGEN_VOORUIT hierboven ("doorgaans 7-14 dagen vooruit
+ * open") — de UI blijft bewust op 7 (conservatief or de standaardweergave),
+ * maar een verzoek dat expliciet verder vooruit vraagt mag tot waar de
+ * ruimste bronnen al reiken.
+ *
+ * Ontdekt als bug (5 aug 2026, Xander): een deep link naar +14 dagen
+ * (2026-08-19 vanaf 5 aug) werd stilzwijgend GENEGEERD, omdat de oude check
+ * `komendeDagen(14)` slechts 14 dagen *vanaf vandaag* teruggeeft — dag 0 t/m
+ * 13, dus t/m 18 augustus, niet t/m 19. Vandaar hier +1: deze constante
+ * betekent "dag+N mag nog", dus de lijst moet N+1 lang zijn om dag N zelf
+ * ook echt te bevatten. Zie komendeDagen(MAX_DAGEN_VOORUIT_ZOEKEN + 1) in
+ * radar/page.tsx en telegramConversatie.ts — beide gebruiken bewust
+ * dezelfde constante, zodat de website en de Telegram-bot nooit een
+ * ander antwoord geven op "hoe ver vooruit mag ik zoeken".
+ */
+export const MAX_DAGEN_VOORUIT_ZOEKEN = 14;
+
 const TIJD_RE = /^(\d{1,2}):(\d{2})$/;
 
 /** "19:00" → 1140 minuten na middernacht. null bij een ongeldige tijd. */

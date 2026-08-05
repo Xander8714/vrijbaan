@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CLUBS, LEDEN_CLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import LocatieKiezer from "@/components/LocatieKiezer";
 import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
-import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
+import { binnenTijdvenster, dagLabel, halfUurOpties, komendeDagen, MAX_DAGEN_VOORUIT_ZOEKEN, naarMinuten, rondAfOpHalfUur } from "@/lib/tijd";
 import { boekingsBestemming } from "@/lib/boekingsLink";
 import type { Club } from "@/lib/types";
 import { BalIcon } from "@/components/PadelIcons";
@@ -197,7 +197,9 @@ export default function RadarPage() {
       const urlDatum = urlParams.get("datum");
       if (urlDatum && dagen.includes(urlDatum)) {
         setGekozenDatum(urlDatum);
-      } else if (urlDatum && komendeDagen(14).includes(urlDatum)) {
+      } else if (urlDatum && komendeDagen(MAX_DAGEN_VOORUIT_ZOEKEN + 1).includes(urlDatum)) {
+        // +1: MAX_DAGEN_VOORUIT_ZOEKEN betekent "dag+N mag nog", dus de lijst
+        // moet N+1 lang zijn om dag N zelf te bevatten (zie tijd.ts).
         setExtraDagUitLink(urlDatum);
         setGekozenDatum(urlDatum);
       }
@@ -336,13 +338,24 @@ export default function RadarPage() {
    * closure van het moment van de klik): ze mogen het effect niet opnieuw
    * laten afgaan, alleen de knop mag dat.
    */
+  // Ref (niet state) omdat de AbortController zelf geen render hoeft te
+  // triggeren — alleen breekZoekenAf() en het effect hieronder lezen 'm.
+  const zoekControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     if (handmatigeZoekopdracht === 0) return; // nog niet op "Zoek nu" gedrukt
 
     const ids = clubsOmTeTonen.map((c) => c.id);
     if (ids.length === 0) return;
 
-    let afgebroken = false;
+    // AbortController i.p.v. alleen de bestaande "afgebroken"-vlag (5 aug
+    // 2026, Xander: "zorg dat ik het zoeken kan stoppen als ik een fout heb
+    // gemaakt") — de oude vlag voorkwam alleen dat een verlate respons de
+    // state nog bijwerkte, maar de fetch zelf liep gewoon door tot 'ie klaar
+    // was. Nu breekt breekZoekenAf() het verzoek ZELF af (via de ref), niet
+    // alleen de reactie erop.
+    const controller = new AbortController();
+    zoekControllerRef.current = controller;
 
     const haalOp = async () => {
       // De statuswissel staat binnen deze async functie en niet in de body van
@@ -352,10 +365,11 @@ export default function RadarPage() {
       setMetingFout(null);
       try {
         const res = await fetch(
-          `/api/beschikbaarheid?datum=${gekozenDatum}&clubs=${encodeURIComponent(ids.join(","))}`
+          `/api/beschikbaarheid?datum=${gekozenDatum}&clubs=${encodeURIComponent(ids.join(","))}`,
+          { signal: controller.signal }
         );
         const data = await res.json();
-        if (afgebroken) return;
+        if (controller.signal.aborted) return;
         if (!res.ok) { setMetingFout(data.error ?? "Ophalen mislukt."); setMetingBezig(false); return; }
         const map = new Map<string, Meting>();
         for (const rij of data.beschikbaarheid as { clubId: string; sloten: Slot[]; fout?: string }[]) {
@@ -365,21 +379,26 @@ export default function RadarPage() {
         setOpgehaaldOp(data.opgehaaldOp ?? null);
         setMetingBezig(false);
       } catch (e) {
-        if (!afgebroken) {
-          setMetingFout(e instanceof Error ? e.message : "Ophalen mislukt.");
-          setMetingBezig(false);
-        }
+        if (controller.signal.aborted) return; // zelf afgebroken — geen foutmelding, dat is geen mislukking
+        setMetingFout(e instanceof Error ? e.message : "Ophalen mislukt.");
+        setMetingBezig(false);
       }
     };
 
     haalOp();
-    return () => { afgebroken = true; };
+    return () => controller.abort();
     // clubsInStraal/gekozenDatum bewust buiten de dependency-array — alleen
     // handmatigeZoekopdracht (de "Zoek nu"-knop) mag dit effect starten, zie
     // de toelichting hierboven. De huidige waarden worden nog wel gebruikt,
     // via de closure van het moment van de klik.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handmatigeZoekopdracht]);
+
+  const breekZoekenAf = () => {
+    zoekControllerRef.current?.abort();
+    setMetingBezig(false);
+    setMetingFout(null);
+  };
 
 
   const kiesLocatie = (loc: GevondenLocatie) => {
@@ -509,6 +528,13 @@ export default function RadarPage() {
   }, [clubsOmTeTonen, metingen, gekozenDatum, voorkeurstijd, margeUren, metingBezig]);
 
   const metPassendeTijd = zichtbareClubs.filter((c) => c.passendeTijden.length > 0).length;
+
+  // Datum bij de resultatentekst (5 aug 2026, Xander: bij een deep link met
+  // een datum ver vooruit was nergens te zien vóór welke dag de resultaten
+  // eigenlijk golden — verwarrend zodra een club daarna 14+ dagen vooruit
+  // boekbaar bleek, zoals bij Playtomic). Zelfde dagLabel-patroon als
+  // deelClub hieronder gebruikt voor het deel-bericht.
+  const gekozenDagLabel = dagLabel(gekozenDatum, Math.max(0, dagen.indexOf(gekozenDatum))).toLowerCase();
 
   // Gevolgde clubs krijgen een eigen strook boven de rest (Xander, 4 aug
   // 2026: "maak een strook tussen met gevolgde clubs") — zo hoef je niet
@@ -771,14 +797,30 @@ export default function RadarPage() {
           {/* Expliciete trigger i.p.v. alleen automatisch verversen — zichtbare
               feedback (spinner-tekst + disabled) zodat een klik voelbaar iets
               doet, ook als de filters ongewijzigd zijn. */}
-          <button
-            type="button"
-            onClick={() => setHandmatigeZoekopdracht((n) => n + 1)}
-            disabled={metingBezig}
-            className="rounded-md bg-court-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-court-700 disabled:opacity-60"
-          >
-            {metingBezig ? "Bezig met zoeken…" : "🔍 Zoek nu"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHandmatigeZoekopdracht((n) => n + 1)}
+              disabled={metingBezig}
+              className="rounded-md bg-court-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-court-700 disabled:opacity-60"
+            >
+              {metingBezig ? "Bezig met zoeken…" : "🔍 Zoek nu"}
+            </button>
+            {/* Stop-knop (5 aug 2026, Xander: "zorg dat ik het zoeken kan
+                stoppen als ik een fout heb gemaakt") — breekt zowel het
+                lopende fetch-verzoek af (via breekZoekenAf/AbortController)
+                als de "bezig"-status, zodat een verkeerde straal/locatie/dag
+                niet eerst uitgezocht hoeft te worden. */}
+            {metingBezig && (
+              <button
+                type="button"
+                onClick={breekZoekenAf}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                ✕ Stop
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -825,17 +867,17 @@ export default function RadarPage() {
             banen bleken te zijn), (3) pas na afloop het echte resultaat. */}
         {voorkeurstijd && handmatigeZoekopdracht === 0 && (
           <p className="mt-3 text-sm text-slate-500">
-            Klik op &quot;Zoek nu&quot; hierboven om te zoeken naar een vrije baan rond {voorkeurstijd}.
+            Klik op &quot;Zoek nu&quot; hierboven om te zoeken naar een vrije baan rond {voorkeurstijd} op {gekozenDagLabel}.
           </p>
         )}
         {voorkeurstijd && handmatigeZoekopdracht > 0 && metingBezig && (
-          <p className="mt-3 text-sm text-slate-500">Nog aan het zoeken naar een vrije baan rond {voorkeurstijd}…</p>
+          <p className="mt-3 text-sm text-slate-500">Nog aan het zoeken naar een vrije baan rond {voorkeurstijd} op {gekozenDagLabel}…</p>
         )}
         {voorkeurstijd && handmatigeZoekopdracht > 0 && !metingBezig && (
           <p className="mt-3 text-sm text-slate-600">
             {metPassendeTijd > 0
-              ? `${metPassendeTijd} club(s) met een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur).`
-              : `Geen enkele gemeten club heeft een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur).`}
+              ? `${metPassendeTijd} club(s) met een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur) op ${gekozenDagLabel}.`
+              : `Geen enkele gemeten club heeft een vrije baan rond ${voorkeurstijd} (± ${margeUren} uur) op ${gekozenDagLabel}.`}
           </p>
         )}
       </section>

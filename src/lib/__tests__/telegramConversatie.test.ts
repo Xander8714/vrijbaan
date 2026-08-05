@@ -2,12 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   bevatVerbodenActie,
   extraheerFlexibeleTijd,
+  extraheerKalenderdatum,
   extraheerStraal,
   extraheerWeekdagen,
   parseAdhocZoekopdracht,
   parseProfielWijzigingen,
   parseVastMomentOpdracht,
 } from "../telegramConversatie";
+import { MAX_DAGEN_VOORUIT_ZOEKEN } from "../tijd";
 
 describe("extraheerFlexibeleTijd", () => {
   it("herkent compacte 3- en 4-cijferige tijden", () => {
@@ -55,6 +57,47 @@ describe("extraheerWeekdagen", () => {
     expect(extraheerWeekdagen("werkdagen")).toEqual([1, 2, 3, 4, 5]);
     expect(extraheerWeekdagen("weekend")).toEqual([6, 0]);
     expect(extraheerWeekdagen("elke dag")).toEqual([1, 2, 3, 4, 5, 6, 0]);
+  });
+});
+
+describe("extraheerKalenderdatum (5 aug 2026)", () => {
+  const nu = new Date("2026-08-05T12:00:00");
+
+  it("herkent 'D maandnaam' en berekent het juiste aantal dagen vooruit", () => {
+    expect(extraheerKalenderdatum("zoek 19 augustus een baan in haarlem om 2030", nu)).toEqual({ offset: 14, teVer: false });
+    expect(extraheerKalenderdatum("6 augustus", nu)).toEqual({ offset: 1, teVer: false });
+  });
+
+  it("wijst een datum verder dan MAX_DAGEN_VOORUIT_ZOEKEN expliciet af i.p.v. stilzwijgend null", () => {
+    const resultaat = extraheerKalenderdatum("zoek 1 oktober een baan in Haarlem", nu);
+    expect(resultaat).toEqual({ offset: null, teVer: true });
+  });
+
+  it("rekent een al-voorbije datum dit jaar door naar volgend jaar", () => {
+    // 1 januari ligt vanaf 5 augustus altijd in het verleden dit jaar.
+    const resultaat = extraheerKalenderdatum("1 januari", nu);
+    expect(resultaat).toEqual({ offset: null, teVer: true }); // ligt >MAX_DAGEN_VOORUIT_ZOEKEN weg (volgend jaar)
+  });
+
+  it("geeft null zonder herkenbare kalenderdatum", () => {
+    expect(extraheerKalenderdatum("zoek een baan in Haarlem morgen", nu)).toBeNull();
+  });
+});
+
+describe("parseAdhocZoekopdracht met kalenderdatum (5 aug 2026)", () => {
+  const nu = new Date("2026-08-05T12:00:00");
+
+  it("herkent de exacte casus uit Xanders melding", () => {
+    const r = parseAdhocZoekopdracht("zoek 19 augustus een baan in haarlem om 2030", nu);
+    expect(r?.plaatsQuery.toLowerCase()).toContain("haarlem");
+    expect(r?.dagOffset).toBe(14);
+    expect(r?.fout).toBeUndefined();
+  });
+
+  it("geeft een duidelijke fout i.p.v. stilzwijgend een andere dag te zoeken", () => {
+    const r = parseAdhocZoekopdracht("zoek een baan in Haarlem op 1 oktober", nu);
+    expect(r?.fout).toContain(String(MAX_DAGEN_VOORUIT_ZOEKEN));
+    expect(r?.dagOffset).toBeNull();
   });
 });
 
