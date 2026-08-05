@@ -24,7 +24,8 @@ export default function StedenOverzicht() {
       <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="mt-4 text-3xl font-bold text-slate-900">Padelbaan vrij per stad</h1>
       <p className="mt-3 text-slate-600">
-        Kies je stad hieronder voor het volledige clubaanbod en een directe link naar de live Radar.
+        Kies je stad hieronder voor het volledige clubaanbod en een directe link naar de live Radar. De Radar is
+        tijdens de testfase gratis te gebruiken na registratie.
       </p>
 
       <ul className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -45,7 +46,7 @@ export default function StedenOverzicht() {
 
       <p className="mt-8 text-xs text-slate-400">
         Staat jouw stad er niet bij? Ga naar de <Link href="/radar" className="underline">Radar</Link> en vul je eigen
-        locatie in — die doorzoekt alle aangesloten clubs door heel Nederland, niet alleen deze zes.
+        locatie in — na gratis registratie doorzoekt die alle aangesloten clubs door heel Nederland, niet alleen deze zes.
       </p>
     </main>
   );

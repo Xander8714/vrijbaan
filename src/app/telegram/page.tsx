@@ -18,6 +18,9 @@ export default function TelegramPage() {
         ook gewoon rechtstreeks in de chat kunt vragen om te zoeken. Geen vaste commando&apos;s met een <code>/</code> ervoor
         (op één na) — je typt gewoon in normale taal wat je wilt.
       </p>
+      <p className="mt-3 rounded-lg border border-court-200 bg-court-50 px-4 py-3 text-sm text-court-900">
+        VrijeBaan zit in de testfase. De Radar en Telegram zijn nu gratis te gebruiken na registratie.
+      </p>
 
       <section className="mt-8">
         <h2 className="text-xl font-semibold text-slate-900">1. Koppelen</h2>

@@ -3,7 +3,21 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return response;
+  const isRadar = request.nextUrl.pathname === "/radar";
+  const naarLogin = () => {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    loginUrl.searchParams.set("reden", "radar");
+    const redirect = NextResponse.redirect(loginUrl);
+    response.cookies.getAll().forEach(({ name, value, ...options }) => {
+      redirect.cookies.set(name, value, options);
+    });
+    return redirect;
+  };
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return isRadar ? naarLogin() : response;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +33,8 @@ export async function proxy(request: NextRequest) {
       },
     }
   );
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (isRadar && !user) return naarLogin();
   return response;
 }
 

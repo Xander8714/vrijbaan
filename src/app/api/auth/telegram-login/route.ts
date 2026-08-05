@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { veiligInternPad } from "@/lib/authNavigatie";
 
 /**
  * Wisselt een eenmalig Telegram-sessietoken (src/lib/telegramSessie.ts) in
@@ -9,25 +10,16 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * opbouwt, alleen dan clientside via e-mail i.p.v. hier via Telegram.
  *
  * Lukt het niet (token onbekend/verlopen/al gebruikt, of geen e-mailadres
- * bekend bij het account) dan valt de gebruiker terug op de kale
- * (uitgelogde) link — zoeken op de Radar werkt sowieso zonder account, dus
- * dit mag nooit een doodlopend pad worden.
+ * bekend bij het account) dan valt de gebruiker terug op de gevraagde URL.
+ * Voor de Radar neemt de centrale auth-beveiliging het daar over.
  */
 export const runtime = "nodejs";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.app";
 
-function veiligPad(pad: string | null): string {
-  // Alleen een relatief pad toestaan. Zonder deze check zou `redirect`
-  // gebruikt kunnen worden voor een open-redirect: een link die via ons
-  // eigen, vertrouwde domein naar een phishing-site doorstuurt.
-  if (!pad || !pad.startsWith("/") || pad.startsWith("//")) return "/radar";
-  return pad;
-}
-
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
-  const redirectPad = veiligPad(req.nextUrl.searchParams.get("redirect"));
+  const redirectPad = veiligInternPad(req.nextUrl.searchParams.get("redirect"));
   const kaleTerugval = NextResponse.redirect(new URL(redirectPad, SITE_URL));
 
   if (!token) return kaleTerugval;

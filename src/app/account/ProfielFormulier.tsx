@@ -1,34 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import LocatieKiezer from "@/components/LocatieKiezer";
-import { afgerondeAfstand, type GevondenLocatie } from "@/lib/geo";
+import type { GevondenLocatie } from "@/lib/geo";
 import type { Profiel } from "@/lib/types";
-import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { normaliseerMobielNummer, toonMobielNummer } from "@/lib/telefoon";
-
-/**
- * Probeert een los getypte verenigingsnaam alsnog aan een bekende club te
- * koppelen — Xander (30 juli 2026): "ik typ hofgeest en dan wil ik ltc
- * hofgeest als mogelijkheid, want het systeem herkent de club niet". Zoekt
- * over ALLE clubs (niet alleen de leden-only lijst): Hofgeest zelf is
- * bijvoorbeeld inmiddels een gewone, vrij boekbare club, maar iemand kan er
- * best lid van willen aangeven te zijn.
- *
- * Bewust een exacte-of-eenduidige-match, geen "beste gok": bij meerdere
- * treffers (bv. "padel" matcht tientallen clubs) blijft de ruwe tekst staan
- * i.p.v. willekeurig de eerste te kiezen.
- */
-function herkenClub(ruw: string): string {
-  if (CLUBS_INCLUSIEF_LEDENCLUBS.some((c) => c.id === ruw)) return ruw;
-  const term = ruw.trim().toLowerCase();
-  if (!term) return ruw;
-  const exact = CLUBS_INCLUSIEF_LEDENCLUBS.find((c) => c.naam.toLowerCase() === term);
-  if (exact) return exact.id;
-  const treffers = CLUBS_INCLUSIEF_LEDENCLUBS.filter((c) => c.naam.toLowerCase().includes(term));
-  return treffers.length === 1 ? treffers[0].id : ruw;
-}
 
 /**
  * Eigen gegevens bekijken en bijwerken. De locatie wordt niet als losse
@@ -51,56 +28,14 @@ export default function ProfielFormulier({
   beginProfiel: Profiel;
 }) {
   const router = useRouter();
-  // Bestaande, niet-herkende lidmaatschappen (zoals "hofgeest" ingetypt vóór
-  // deze club een echte match kon zijn) meteen bij het laden proberen te
-  // herkennen — dan klopt het label al zonder dat de gebruiker iets hoeft te
-  // doen, en overschrijft "Opslaan" de ruwe tekst met het echte club-id.
-  const [profiel, setProfiel] = useState<Profiel>(() => ({
-    ...beginProfiel,
-    lidmaatschappen: beginProfiel.lidmaatschappen.map(herkenClub),
-  }));
+  const [profiel, setProfiel] = useState<Profiel>(beginProfiel);
   const [status, setStatus] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [bezig, setBezig] = useState(false);
-  const [verenigingZoekterm, setVerenigingZoekterm] = useState("");
   const [telefoonInvoer, setTelefoonInvoer] = useState(
     profiel.telefoon ? toonMobielNummer(profiel.telefoon) : ""
   );
   const [telefoonFout, setTelefoonFout] = useState<string | null>(null);
-
-  /**
-   * Suggesties terwijl je typt, over ALLE clubs (niet alleen leden-only) —
-   * zodat "hofgeest" ook "LTC Hofgeest" oplevert, ook al is die club zelf
-   * gewoon vrij boekbaar. Op afstand gesorteerd zodra we een middelpunt
-   * hebben, anders op naam. Al toegevoegde clubs niet nogmaals voorstellen.
-   */
-  const verenigingSuggesties = useMemo(() => {
-    const term = verenigingZoekterm.trim().toLowerCase();
-    if (term.length < 2) return [];
-    const kandidaten = CLUBS_INCLUSIEF_LEDENCLUBS.filter(
-      (c) => c.naam.toLowerCase().includes(term) && !profiel.lidmaatschappen.includes(c.id)
-    );
-    const metAfstand =
-      profiel.lat !== null && profiel.lon !== null
-        ? kandidaten.map((c) => ({ ...c, afstandKm: afgerondeAfstand({ lat: profiel.lat!, lon: profiel.lon! }, c) }))
-            .sort((a, b) => a.afstandKm - b.afstandKm)
-        : kandidaten.map((c) => ({ ...c, afstandKm: null as number | null })).sort((a, b) => a.naam.localeCompare(b.naam, "nl"));
-    return metAfstand.slice(0, 8);
-  }, [verenigingZoekterm, profiel.lat, profiel.lon, profiel.lidmaatschappen]);
-
-  const voegLidmaatschapToe = (waarde: string) => {
-    const schoon = waarde.trim();
-    if (!schoon || profiel.lidmaatschappen.includes(schoon)) return;
-    setProfiel((p) => ({ ...p, lidmaatschappen: [...p.lidmaatschappen, herkenClub(schoon)] }));
-  };
-
-  const verwijderLidmaatschap = (waarde: string) =>
-    setProfiel((p) => ({ ...p, lidmaatschappen: p.lidmaatschappen.filter((l) => l !== waarde) }));
-
-  // Een lidmaatschap kan een club-id zijn of een (nog) niet-herkende, zelf
-  // getypte naam — zoek over alle clubs, niet alleen de leden-only lijst.
-  const lidmaatschapLabel = (waarde: string) =>
-    CLUBS_INCLUSIEF_LEDENCLUBS.find((c) => c.id === waarde)?.naam ?? waarde;
 
   const zet = <K extends keyof Profiel>(veld: K, waarde: Profiel[K]) =>
     setProfiel((p) => ({ ...p, [veld]: waarde }));
@@ -265,68 +200,6 @@ export default function ProfielFormulier({
             {tekstveld("Huisnummer", "huisnummer", "optioneel")}
           </div>
         </details>
-        {/* Lidmaatschappen: direct na de woonplaats, zodat suggesties op
-            afstand gesorteerd en kort kunnen zijn. */}
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="veld-vereniging-zoek">
-            Ben je lid van een vereniging?
-          </label>
-          <p className="mt-1 text-xs text-slate-500">
-            Bij verenigingen kun je vaak alleen als lid boeken, dus die verbergen we normaal. Geef je aan dat je er
-            lid bent, dan tonen we hun vrije banen wél — met een link naar de clubsite.
-          </p>
-          <div className="relative mt-2 max-w-sm">
-            <input
-              id="veld-vereniging-zoek"
-              value={verenigingZoekterm}
-              onChange={(e) => setVerenigingZoekterm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                if (verenigingSuggesties.length > 0) voegLidmaatschapToe(verenigingSuggesties[0].id);
-                else if (verenigingZoekterm.trim()) voegLidmaatschapToe(verenigingZoekterm);
-                setVerenigingZoekterm("");
-              }}
-              placeholder="Typ een verenigingsnaam, bv. Hofgeest"
-              aria-label="Zoek een vereniging"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            {verenigingSuggesties.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full max-h-56 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2 shadow-md">
-                {verenigingSuggesties.map((club) => (
-                  <li key={club.id}>
-                    <button type="button"
-                      onClick={() => { voegLidmaatschapToe(club.id); setVerenigingZoekterm(""); }}
-                      className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-court-50">
-                      {club.naam} <span className="text-slate-400">· {club.plaats}{club.afstandKm !== null ? ` (${club.afstandKm} km)` : ""}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {verenigingZoekterm.trim().length >= 2 && verenigingSuggesties.length === 0 && (
-              <button type="button"
-                onClick={() => { voegLidmaatschapToe(verenigingZoekterm); setVerenigingZoekterm(""); }}
-                className="mt-1 text-xs font-medium text-court-700 hover:underline">
-                &quot;{verenigingZoekterm.trim()}&quot; niet in de lijst — toch toevoegen als eigen tekst
-              </button>
-            )}
-          </div>
-          {profiel.lidmaatschappen.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {profiel.lidmaatschappen.map((l) => (
-                <li key={l} className="flex items-center gap-2 rounded-md bg-court-50 px-2 py-1 text-xs text-court-800">
-                  {lidmaatschapLabel(l)}
-                  <button type="button" onClick={() => verwijderLidmaatschap(l)}
-                    aria-label={`Verwijder ${lidmaatschapLabel(l)}`} className="text-court-600 hover:text-red-600">
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
         <div className="mt-4">
           <label className="block text-sm font-medium text-slate-700" htmlFor="veld-straal">
             Zoekstraal: {profiel.zoekstraalKm} km

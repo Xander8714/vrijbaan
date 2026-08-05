@@ -68,7 +68,7 @@ export default async function StadPagina({ params }: { params: Promise<{ stad: s
         className="mt-8 block rounded-xl bg-ink-900 p-6 text-white transition hover:bg-ink-800"
       >
         <p className="text-lg font-semibold">Bekijk nu live welke baan vrij is in {info.naam} →</p>
-        <p className="mt-1 text-sm text-slate-300">De Radar checkt alle clubs hieronder tegelijk, geen losse apps nodig.</p>
+        <p className="mt-1 text-sm text-slate-300">Gratis in de testfase na registratie. De Radar checkt alle clubs hieronder tegelijk.</p>
       </Link>
 
       <h2 className="mt-10 text-xl font-semibold text-slate-900">Clubs in {info.naam}</h2>
@@ -89,7 +89,7 @@ export default async function StadPagina({ params }: { params: Promise<{ stad: s
 
       <p className="mt-8 text-xs text-slate-400">
         Zoek je liever een andere plaats? Ga naar de <Link href="/radar" className="underline">Radar</Link> en vul je
-        eigen locatie in.
+        eigen locatie in. De Radar is tijdens de testfase gratis na registratie.
       </p>
     </main>
   );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { veiligInternPad } from "@/lib/authNavigatie";
 
 /**
  * Vangt de terugkeer van een OAuth-provider (nu: Google) op. Supabase's eigen
@@ -13,16 +14,9 @@ export const runtime = "nodejs";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vrijbaan.vercel.app";
 
-// Zelfde bescherming als in src/app/api/auth/telegram-login/route.ts: alleen
-// een relatief pad toestaan, anders zou `next` een open-redirect zijn.
-function veiligPad(pad: string | null): string {
-  if (!pad || !pad.startsWith("/") || pad.startsWith("//")) return "/radar";
-  return pad;
-}
-
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const nextPad = veiligPad(req.nextUrl.searchParams.get("next"));
+  const nextPad = veiligInternPad(req.nextUrl.searchParams.get("next"));
 
   if (code) {
     const supabase = await supabaseServer();

@@ -24,7 +24,7 @@ export const LAUNCH_CAMPAGNE: LaunchCampagnePost[] = [
     scheduledFor: "2026-08-07T19:00:00+02:00",
     hashtags: [...basisHashtags, "padelradar"],
     caption:
-      "Zo werkt de Radar: kies je locatie, stel je straal in en tik op Zoek nu. Je ziet meteen welke clubs vrije banen hebben. Probeer ’m gratis via devrijebaan.nl/radar 🎾\n\n#padel #vrijebaan #padelhaarlem #padelradar",
+      "Zo werkt de Radar: kies je locatie, stel je straal in en tik op Zoek nu. Je ziet meteen welke clubs vrije banen hebben. Test ’m nu gratis na registratie via devrijebaan.nl/radar 🎾\n\n#padel #vrijebaan #padelhaarlem #padelradar",
     visual: {
       template: "editorial-carousel-v1",
       accent: "court-ball",
@@ -76,11 +76,11 @@ export const LAUNCH_CAMPAGNE: LaunchCampagnePost[] = [
     scheduledFor: "2026-08-16T19:00:00+02:00",
     hashtags: [...basisHashtags, "gratispadelapp"],
     caption:
-      "Ja, echt gratis. Geen creditcard, geen addertjes. We testen dit jaar met een kleine groep voordat we ooit aan betalen denken — en dan alleen als de app het waard is. Nu meedoen via devrijebaan.nl.\n\n#padel #vrijebaan #padelhaarlem #gratispadelapp",
+      "VrijeBaan zit in de testfase. Registreer je als tester en gebruik de Radar en Telegram nu gratis. Geen creditcard, geen addertjes — eerst bewijzen dat de app het waard is. Nu meedoen via devrijebaan.nl.\n\n#padel #vrijebaan #padelhaarlem #gratispadelapp",
     visual: {
       template: "editorial-carousel-v1",
       accent: "court-ball",
-      slides: [{ eyebrow: "DIT JAAR", lines: [{ text: "100%" }, { text: "gratis.", accent: true }], body: "Geen creditcard. Geen addertjes. Eerst bewijzen dat VrijeBaan het waard is.", cta: "Nu meedoen • devrijebaan.nl", motif: "free" }],
+      slides: [{ eyebrow: "TESTFASE", lines: [{ text: "Gratis" }, { text: "na registratie.", accent: true }], body: "Radar en Telegram. Geen creditcard. Help VrijeBaan beter te maken.", cta: "Test mee • devrijebaan.nl", motif: "free" }],
     },
   },
 ];

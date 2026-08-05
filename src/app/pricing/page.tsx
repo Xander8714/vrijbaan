@@ -10,17 +10,18 @@ export default function PricingPage() {
       <Link href="/" className="text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="mt-4 text-4xl font-bold text-slate-900">Prijzen</h1>
       <p className="mt-2 text-slate-600">
-        VrijeBaan is <span className="font-semibold text-court-700">dit jaar (2026) volledig gratis</span> — we
-        testen nog met een kleine groep.{" "}
+        VrijeBaan zit in de testfase. De <span className="font-semibold text-court-700">Radar en Telegram zijn nu gratis na registratie</span>,
+        zodat we het gebruik samen met echte testers kunnen verbeteren.{" "}
         <span className="font-semibold text-slate-900">Vanaf begin 2027 wordt dit een betaald plan.</span>
       </p>
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <div className="bal-stippen rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Nu: alles gratis</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Nu: gratis testaccount</h2>
           <p className="mt-1 text-3xl font-bold text-slate-900">€0</p>
           <ul className="mt-4 space-y-2 text-sm text-slate-600">
-            <li>✓ Onbeperkt clubs volgen</li>
-            <li>✓ Onbeperkte meldingen (Radar + Telegram)</li>
+            <li>✓ Radar gebruiken na registratie</li>
+            <li>✓ Telegram-bot koppelen</li>
+            <li>✓ Eén club volgen en meldingen ontvangen</li>
             <li>✓ Wekelijkse herinnering voor je vaste speelmoment</li>
           </ul>
         </div>
@@ -46,7 +47,7 @@ export default function PricingPage() {
       </div>
       <p className="mt-6 text-xs text-slate-400">
         Speel je nu al mee als tester? Bedankt — dat helpt enorm. Er verandert niets aan je account tot we hierover
-        vooraf communiceren.
+        vooraf communiceren. Bij registratie wordt de bevestigingsmail door Supabase verzonden.
       </p>
     </main>
   );

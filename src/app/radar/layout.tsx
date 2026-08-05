@@ -4,10 +4,10 @@ import type { Metadata } from "next";
 // daar niet direct in — vandaar deze losse server-layout eromheen, het
 // standaard Next.js-patroon voor dit geval.
 export const metadata: Metadata = {
-  title: "Padel Radar — live beschikbaarheid bij jou in de buurt",
+  title: "Padel Radar — gratis testen na registratie",
   description:
-    "Zoek padelbanen op adres en straal, filter op dag en tijd, en zie live welke banen vrij zijn bij Playtomic-, KNLTB Meet & Play- en Peakz-clubs — tot een week vooruit.",
-  alternates: { canonical: "/radar" },
+    "VrijeBaan zit in de testfase. Registreer gratis en bekijk met de Radar live welke padelbanen bij jou in de buurt vrij zijn.",
+  robots: { index: false, follow: false },
 };
 
 export default function RadarLayout({ children }: { children: React.ReactNode }) {

@@ -22,11 +22,7 @@ const TOTAAL_BANEN_LANDELIJK = CLUBS.reduce((som, club) => som + club.banen, 0);
 
 const GRATIS_LIMIET = 1;
 const OPSLAG_SLEUTEL = "vrijbaan-zoekgebied";
-const LID_SLEUTEL = "vrijbaan-lidmaatschappen";
 const MARGE_OPTIES = [1, 2, 3];
-
-// Zonder account alleen vandaag + morgen — zie de toelichting bij `dagen`.
-const DAGEN_ZONDER_ACCOUNT = 2;
 
 // Zelfde grens als MAX_CLUBS in src/app/api/beschikbaarheid/route.ts — hier
 // nogmaals, zodat de UI al vóór het verzoek kan zeggen dat het te veel is.
@@ -61,18 +57,11 @@ export default function RadarPage() {
   // runs per bezoek, zie DAGEN_VOORUIT hierboven) breidt dit alleen uit als
   // er ook echt zo'n link gevolgd is.
   const [extraDagUitLink, setExtraDagUitLink] = useState<string | null>(null);
-  // Zonder account alleen vandaag/morgen tonen, een week vooruit is voor
-  // ingelogde gebruikers — Xander (4 aug 2026): "als niet lid alleen
-  // vandaag en morgen ... registreer jezelf als je een week vooruit wil
-  // boeken". `!laden` wachten voorkomt dat de knoppenrij eerst op 7 dagen
-  // begint en daarna terugklapt naar 2 zodra bekend is dat er geen sessie
-  // is — dan liever meteen goed.
   const dagen = useMemo(() => {
-    const basis = komendeDagen();
-    const zichtbaar = !laden && !userId ? basis.slice(0, DAGEN_ZONDER_ACCOUNT) : basis;
+    const zichtbaar = komendeDagen();
     if (extraDagUitLink && !zichtbaar.includes(extraDagUitLink)) return [...zichtbaar, extraDagUitLink].sort();
     return zichtbaar;
-  }, [extraDagUitLink, laden, userId]);
+  }, [extraDagUitLink]);
   // Standaard actuele tijd ± 2 uur — Xander (30 juli 2026): "pak altijd de
   // actuele tijd, behalve als het later is dan 21 uur, want dan is de
   // persoon op zoek naar de volgende dag". Beide zijn lazy useState-
@@ -125,10 +114,6 @@ export default function RadarPage() {
       return nieuw;
     });
   };
-
-  // Clubs waar de gebruiker zelf lid is. Alleen die ledenclubs doen mee in de
-  // lijst — voor een lid zijn hun vrije banen namelijk wél bruikbaar.
-  const [lidVan, setLidVan] = useState<Set<string>>(new Set());
 
   /**
    * Locatie bepalen zonder externe dienst of API-key: de Geolocation API van
@@ -227,20 +212,8 @@ export default function RadarPage() {
         }
       }
 
-      let lidmaatschappen: string[] = [];
-      const lidOpslag = window.localStorage.getItem(LID_SLEUTEL);
-      if (lidOpslag) {
-        try {
-          lidmaatschappen = JSON.parse(lidOpslag) as string[];
-        } catch {
-          // Onleesbare opslag negeren.
-        }
-      }
-
       const supabase = supabaseBrowser();
       const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
-
-      if (lidmaatschappen.length > 0) setLidVan(new Set(lidmaatschappen));
 
       if (!user) {
         // Xander (30 juli 2026): "de locatie ±10km als iemand online komt,
@@ -266,7 +239,7 @@ export default function RadarPage() {
         supabase.from("gevolgde_clubs").select("club_id").eq("user_id", user.id),
         supabase
           .from("profiles")
-          .select("subscription_status, woonplaats, lat, lon, zoekstraal_km, lidmaatschappen, voornaam, achternaam")
+          .select("subscription_status, woonplaats, lat, lon, zoekstraal_km, voornaam, achternaam")
           .eq("id", user.id)
           .single(),
       ]);
@@ -274,13 +247,6 @@ export default function RadarPage() {
       setIsPro(profiel?.subscription_status === "pro");
       const naam = [profiel?.voornaam, profiel?.achternaam].filter(Boolean).join(" ");
       if (naam || user.email) setEigenGegevens({ naam, email: user.email ?? "" });
-      // Lidmaatschappen uit het account samenvoegen met wat op dit apparaat
-      // stond, zodat een vinkje op de Radar niet verdwijnt na inloggen.
-      const uitProfielLid: string[] = profiel?.lidmaatschappen ?? [];
-      if (uitProfielLid.length > 0 || lidmaatschappen.length > 0) {
-        setLidVan(new Set([...lidmaatschappen, ...uitProfielLid]));
-      }
-
       const uitProfiel: Zoekgebied | null =
         profiel?.lat != null && profiel?.lon != null
           ? {
@@ -301,10 +267,11 @@ export default function RadarPage() {
     init().catch(() => setLaden(false));
   }, []);
 
-  // Vrij boekbare clubs + de ledenclubs waar je zelf lid bent.
+  // Verenigingen zitten achter hun eigen inlogmuur en hebben daarom geen nut
+  // voor het gratis testaccount. Pro-gebruikers kunnen ze wel direct volgen.
   const kandidaatClubs = useMemo(
-    () => [...CLUBS, ...LEDEN_CLUBS.filter((club) => lidVan.has(club.id))],
-    [lidVan]
+    () => isPro ? [...CLUBS, ...LEDEN_CLUBS] : CLUBS,
+    [isPro]
   );
 
   /**
@@ -826,14 +793,6 @@ export default function RadarPage() {
           ))}
         </div>
 
-        {!laden && !userId && (
-          <p className="mt-2 text-xs text-slate-500">
-            Zonder account alleen vandaag en morgen.{" "}
-            <Link href="/login" className="font-medium text-court-700 underline">Registreer jezelf</Link> als je een
-            week vooruit wil boeken.
-          </p>
-        )}
-
         <div className="mt-4 flex flex-wrap items-end gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="voorkeurstijd">Voorkeurstijd</label>
@@ -880,19 +839,6 @@ export default function RadarPage() {
           </p>
         )}
       </section>
-
-      {/* Ledenclubs: geen los toggle-blok meer hier — Xander (30 juli 2026):
-          "haal het stuk van ben je lid van een vereniging naar het account
-          tabblad, dat is de plek voor instellingen". lidVan wordt nu alleen
-          nog gelezen (uit localStorage + profiel.lidmaatschappen, zie de
-          init-effect hierboven), niet meer hier bewerkt. Wie een ledenclub
-          wil ontgrendelen, doet dat voortaan op /account. */}
-      {LEDEN_CLUBS.length > 0 && userId === null && (
-        <p className="mt-4 text-xs text-slate-400">
-          Lid van een vereniging? <Link href="/login" className="underline">Log in</Link> en zet het in je account
-          om hun vrije banen ook hier te zien.
-        </p>
-      )}
 
       {/* Paneel na het klikken op een tijd: wat je op de site van de club nog
           zelf moet doen. Voorinvullen kán niet — de browser staat niet toe dat
@@ -1046,9 +992,9 @@ export default function RadarPage() {
       )}
 
       <p className="mt-8 text-xs text-slate-400">
-        Beschikbaarheid komt live van Playtomic, KNLTB Meet &amp; Play en Foys/Peakz. Clubs waar je alleen met een
-        lidmaatschap of login kunt boeken, tonen we hier niet. Afstanden met &quot;(ca.)&quot; zijn gemeten tot het
-        midden van de plaats, niet tot het exacte clubadres.
+        Beschikbaarheid komt live van Playtomic, KNLTB Meet &amp; Play en Foys/Peakz. Gratis testaccounts zien clubs
+        waar je openbaar kunt boeken; Pro kan ook verenigingen achter een inlog bekijken en volgen. Afstanden met
+        &quot;(ca.)&quot; zijn gemeten tot het midden van de plaats, niet tot het exacte clubadres.
       </p>
       </main>
     </>

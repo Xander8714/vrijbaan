@@ -40,6 +40,9 @@ export default function Home() {
             Vrij baan om te padellen. VrijeBaan bundelt live beschikbaarheid van padelclubs bij jou in de buurt — zoek
             op adres, stel je straal in en boek direct bij de club zelf.
           </p>
+          <p className="mt-3 max-w-xl text-sm font-medium text-ball-400">
+            We zitten in de testfase. De Radar en Telegram zijn nu gratis te gebruiken na registratie.
+          </p>
           {/* Xander (4 aug 2026): "maak duidelijk dat je via telegram
               notificaties krijgt bij een account aanmaken, daar is de app
               natuurlijk om te doen" — de Radar (hierboven) is het zoeken,
@@ -51,7 +54,7 @@ export default function Home() {
               <path d="M9.036 15.803 8.83 20.79c.44 0 .63-.19.86-.42l2.07-1.98 4.29 3.14c.79.44 1.35.21 1.56-.73l2.83-13.3c.28-1.15-.42-1.6-1.19-1.32L2.6 10.86c-1.12.44-1.1 1.06-.19 1.34l4.6 1.44 10.68-6.74c.5-.33.96-.15.58.18Z" />
             </svg>
             <p className="text-sm text-slate-300">
-              <span className="font-semibold text-white">Maak een gratis account en je hoeft nooit meer zelf te checken.</span>{" "}
+              <span className="font-semibold text-white">Registreer je gratis als tester en je hoeft nooit meer zelf te checken.</span>{" "}
               Volg een club of stel je vaste speelmoment in, en VrijeBaan stuurt je automatisch een Telegram-bericht
               zodra er een plek vrijkomt.
             </p>
@@ -64,7 +67,7 @@ export default function Home() {
               href="/radar"
               className="rounded-md bg-ball-400 px-5 py-2.5 text-sm font-semibold text-ink-950 shadow-sm transition hover:bg-ball-300"
             >
-              Bekijk beschikbaarheid →
+              Gratis registreren &amp; Radar openen →
             </Link>
             <Link
               href="/pricing"

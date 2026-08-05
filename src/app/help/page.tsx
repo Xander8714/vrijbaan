@@ -11,7 +11,7 @@ const usecases = [
   {
     titel: "Ik wil weten zodra er een baan vrijkomt bij mijn club",
     stappen: [
-      "Ga naar Radar en klik bij één of meerdere clubs op 'Volg deze club'.",
+      "Registreer of log in, ga naar Radar en klik bij een club op 'Volg deze club'.",
       "Klik op je accountpagina op 'Koppel Telegram' — dit opent Telegram automatisch bij onze bot (@vrijbaan_notify_bot). Druk daar op Start.",
       "Klaar: je krijgt daar automatisch een berichtje zodra er bij een gevolgde club een nieuw slot vrijkomt.",
     ],
@@ -29,7 +29,8 @@ const faq = [
   { vraag: "Wat moet ik in Telegram zoeken om bij de bot te komen?", antwoord: "Meestal hoef je niks te zoeken: de knop 'Koppel Telegram' op je accountpagina opent Telegram automatisch bij de juiste bot. Werkt die link niet (bv. je zit al in de Telegram-app op een ander toestel), zoek dan zelf naar @vrijbaan_notify_bot en druk op Start." },
   { vraag: "Wat betekent speelsterkte 1 tot 9?", antwoord: "De officiële KNLTB-schaal: 1 is sterkste, 9 is beginnend. Het sterkste koppel speelt wedstrijd 1." },
   { vraag: "Kan ik de app op mijn telefoon zetten?", antwoord: "Ja — open de site in je mobiele browser en kies 'Toevoegen aan beginscherm'." },
-  { vraag: "Wat kost het?", antwoord: "Dit jaar (2026) is alles volledig gratis — we testen nog met een kleine groep. Zie de prijzenpagina voor het plan vanaf 2027." },
+  { vraag: "Wat kost het?", antwoord: "VrijeBaan zit in de testfase. Na registratie kun je de Radar en Telegram nu gratis gebruiken. Zie de prijzenpagina voor het plan vanaf 2027." },
+  { vraag: "Van wie komt de bevestigingsmail?", antwoord: "De bevestigingsmail na registratie wordt verzonden door Supabase, de beveiligde dienst die VrijeBaan voor accounts gebruikt. Controleer ook je spamfolder." },
 ];
 
 export default function HelpPage() {

@@ -3,6 +3,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { veiligInternPad } from "@/lib/authNavigatie";
 
 type Modus = "inloggen" | "registreren" | "vergeten";
 
@@ -30,6 +31,8 @@ function LoginFormulierSkelet() {
 
 function LoginFormulier() {
   const zoekParams = useSearchParams();
+  const volgendPad = veiligInternPad(zoekParams.get("next"));
+  const voorRadar = zoekParams.get("reden") === "radar";
   const [email, setEmail] = useState("");
   const [wachtwoord, setWachtwoord] = useState("");
   const [modus, setModus] = useState<Modus>("inloggen");
@@ -46,15 +49,16 @@ function LoginFormulier() {
 
   // Google logt in óf maakt het account aan, al naar gelang of dit
   // e-mailadres al bekend is — dezelfde knop dekt dus zowel "inloggen" als
-  // "registreren". next=/radar: Xander (4 aug 2026): "na het inloggen niet
-  // naar account maar naar de radar" — dat is waar iemand na inloggen
-  // meteen iets aan heeft, i.p.v. eerst langs het profielformulier.
+  // "registreren". De oorspronkelijke interne bestemming blijft bewaard,
+  // zodat bijvoorbeeld een gedeelde Radar-datum na het inloggen niet weg is.
   const inloggenMetGoogle = async () => {
     setBericht(null); setBezig(true);
     const supabase = supabaseBrowser();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/radar` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(volgendPad)}`,
+      },
     });
     // Bij succes navigeert de browser meteen weg naar Google — bezig blijft
     // dan bewust op true (er is geen "klaar"-moment op deze pagina zelf).
@@ -104,7 +108,9 @@ function LoginFormulier() {
       // dat er niets gebeurd was. E-mailadres blijft ingevuld staan (wachtwoord
       // is hetzelfde als net getypt), dus inloggen na het bevestigen is één klik.
       setModus("inloggen");
-      setBericht("Account aangemaakt. Check je mail om te bevestigen, log daarna hieronder in.");
+      setBericht(
+        "Account aangemaakt. De bevestigingsmail wordt door Supabase verzonden. Controleer je inbox en spamfolder en log daarna hieronder in."
+      );
       // Los van de gebruikersflow — een mislukte eigenaarsmelding mag een
       // geslaagde registratie nooit blokkeren, dus bewust niet awaited/gecatched
       // op een manier die de UI raakt.
@@ -115,9 +121,7 @@ function LoginFormulier() {
       }).catch(() => {});
       return;
     }
-    // Xander (4 aug 2026): "na het inloggen niet naar account maar naar de
-    // radar" — zelfde reden als bij inloggenMetGoogle hierboven.
-    router.push("/radar"); router.refresh();
+    router.push(volgendPad); router.refresh();
   };
 
   const kop = modus === "inloggen" ? "Inloggen" : modus === "registreren" ? "Account aanmaken" : "Wachtwoord vergeten";
@@ -127,6 +131,12 @@ function LoginFormulier() {
     <main className="mx-auto flex min-h-[80vh] max-w-sm flex-col justify-center px-6">
       <Link href="/" className="mb-6 text-sm text-court-700 hover:underline">&larr; Terug</Link>
       <h1 className="text-2xl font-bold text-slate-900">{kop}</h1>
+
+      {voorRadar && (
+        <p className="mt-3 rounded-md bg-court-50 px-3 py-2 text-sm text-court-900">
+          VrijeBaan zit in de testfase. Registreer of log in om de Radar en Telegram nu gratis te gebruiken.
+        </p>
+      )}
 
       {modus === "vergeten" && (
         <p className="mt-2 text-sm text-slate-600">
@@ -171,6 +181,11 @@ function LoginFormulier() {
             <label className="sr-only" htmlFor="wachtwoord">Wachtwoord</label>
             <input id="wachtwoord" type="password" required minLength={6} value={wachtwoord} onChange={(e) => setWachtwoord(e.target.value)} placeholder="Wachtwoord" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </>
+        )}
+        {modus === "registreren" && (
+          <p className="text-xs text-slate-500">
+            Na registratie ontvang je een bevestigingsmail van Supabase. Controleer ook je spamfolder.
+          </p>
         )}
         <button disabled={bezig} type="submit" className="w-full rounded-md bg-court-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-court-700 disabled:opacity-50">{bezig ? "Bezig…" : knop}</button>
       </form>
