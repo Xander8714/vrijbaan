@@ -1,14 +1,23 @@
 /**
  * Losse polling-job (géén Next.js request/response cyclus — zie
- * PROJECTPLAN.md §5). Bedoeld om periodiek (5-10 min) te draaien via een
- * externe scheduler: Vercel Cron, een Railway/Render cron-service, of lokaal
- * via Windows Task Scheduler. Dit script zelf doet één ronde en stopt —
- * de herhaling is de verantwoordelijkheid van de scheduler.
+ * PROJECTPLAN.md §5). Draait op de VPS via de systemd-timer
+ * vrijebaan-poll.timer — dit script zelf doet één ronde en stopt, de
+ * herhaling is de verantwoordelijkheid van die timer.
+ *
+ * INTERVAL EN VENSTER (bijgewerkt 4/5 aug 2026, Xander): elke 30 minuten,
+ * alleen 06:00-23:00 Europe/Amsterdam ("zeker niet 's nachts tussen 2300 en
+ * 0600"). Was elke 5 minuten 24/7 — bij slechts een handvol echte testers
+ * (3 accounts) stond dat gelijk aan bijna continu Chromium draaien: ~2,5
+ * min CPU-tijd per ronde, dus zo'n 50-60% van elk 5-minutenblok, dag en
+ * nacht. Dat verklaarde zowel de constant hoge CPU-grafiek als tientallen
+ * GB's dataverbruik per dag (elke ronde is een echte browserpagina-load
+ * per club, met afbeeldingen/fonts/JS). Kan weer omlaag zodra er
+ * daadwerkelijk gebruikers zijn die snellere meldingen nodig hebben.
  *
  * ⚠️ SELECTIEF SINDS 29 juli 2026 — niet meer "alle clubs in POLL_CONFIG".
  * Met 111+ clubs (Playtomic/Meet & Play kosten elk een eigen Playwright-run
- * van ~15-20s) duurde een volledige ronde ruim een uur — onbruikbaar voor een
- * cyclus van 5-10 min (zie PROJECTPLAN.md §0/§8). Deze job pollt nu:
+ * van ~15-20s) duurde een volledige ronde ruim een uur — onbruikbaar voor
+ * een korte cyclus (zie PROJECTPLAN.md §0/§8). Deze job pollt nu:
  * 1. ALTIJD alle clubs die minstens één gebruiker volgt (tabel
  *    `gevolgde_clubs`) — dat is waar een notificatie ook daadwerkelijk voor
  *    iemand betekenis heeft.
@@ -108,11 +117,27 @@ const DAGEN_VOORUIT = 3;
 // Hoeveel niet-gevolgde clubs per ronde extra meegenomen worden, naast alle
 // gevolgde clubs. Bij ~15-20s per Playtomic/Meet & Play-club houdt dit een
 // ronde binnen een paar minuten, ook als er nog niemand iets volgt.
-const ROTATIE_GROOTTE = 8;
+//
+// Beide constanten geëxporteerd zodat src/lib/__tests__/pollRotatie.test.ts
+// ze rechtstreeks kan gebruiken i.p.v. de waarden te dupliceren — anders
+// loopt de test stil uit de pas zodra hier iets wijzigt (gebeurde
+// letterlijk net: het polling-interval ging van 5 naar 30 min, en de test
+// gebruikte nog hardcoded 5-minutenstappen).
+export const ROTATIE_GROOTTE = 8;
 // Hoe lang één rotatieblok "actief" is vóór de volgende batch aan de beurt
 // is. Moet ruwweg gelijk zijn aan de cron-cyclus zodat elke ronde een nieuw
 // blok pakt in plaats van tweemaal hetzelfde.
-const ROTATIE_BLOK_MINUTEN = 5;
+//
+// BELANGRIJK bij het wijzigen van vrijebaan-poll.timer: dit moet in de pas
+// blijven met het echte polling-interval (4/5 aug 2026 van 5 naar 30 min
+// gezet, zie de toelichting bovenaan dit bestand). Loopt dit uit de pas
+// (bv. elke 30 min pollen terwijl dit nog op 5 staat), dan springt de
+// index bij elke ronde 6 blokken door i.p.v. 1 — en als dat sprongetje
+// geen deler is van het totaal aantal blokken, worden de meeste
+// niet-gevolgde clubs dan NOOIT meer aan de beurt (modulaire rekenkunde:
+// een vaste stap bestrijkt alleen alle blokken als de stap en het totaal
+// onderling ondeelbaar zijn) — een stille, moeilijk te ontdekken bug.
+export const ROTATIE_BLOK_MINUTEN = 30;
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -245,8 +270,8 @@ async function stuurNotificatiesVoorClub(
 /**
  * Kiest een tijdgebaseerd roterend blok uit de niet-gevolgde, wél pollbare
  * clubs. Geen persistente cursor: het blok volgt puur uit de huidige tijd,
- * dus opeenvolgende runs (elke ~5-10 min, extern gepland) schuiven vanzelf
- * door tot elke club aan de beurt is geweest.
+ * dus opeenvolgende runs (elke 30 min, via vrijebaan-poll.timer) schuiven
+ * vanzelf door tot elke club aan de beurt is geweest.
  */
 export function kiesRotatieBatch(nietGevolgdPollbaar: string[], nu: Date = new Date()): string[] {
   if (nietGevolgdPollbaar.length === 0) return [];
@@ -313,8 +338,12 @@ async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
 //
 // VERTRAGING/VENSTER: 90 min na de speeltijd (Xander noemde zowel "een uur"
 // als "21:30 bij een sessie om 20:00" — 21:30 is 90 min, dat is aangehouden)
-// met een venster van 30 min erna, zodat een gemiste of vertraagde
-// pollronde (elke ~5-10 min extern gepland) het moment niet laat glippen.
+// met een venster van 60 min erna, zodat een gemiste of vertraagde pollronde
+// het moment niet laat glippen. Was 30 min toen er elke 5-10 min gepolld
+// werd (ruim genoeg marge); nu het interval naar 30 min is gegaan (4/5 aug
+// 2026, zie bovenaan dit bestand) zou een venster van exact 30 min maar
+// plek voor ÉÉN pollronde overlaten — geen enkele marge meer als die ene
+// ronde net iets uitloopt. 60 min laat er weer twee overlappen.
 // laatste_herinnering_op (per moment, niet per profiel — zie hieronder)
 // voorkomt dubbel versturen binnen dezelfde dag.
 //
@@ -329,7 +358,7 @@ async function haalSlotenOp(clubId: string, datum: string): Promise<Slot[]> {
 // geldt voor élke Date-berekening in het hele proces, ook /api/
 // beschikbaarheid's alleenToekomstig-filter).
 const WEEKHERINNERING_VERTRAGING_MIN = 90;
-const WEEKHERINNERING_VENSTER_MIN = 30;
+const WEEKHERINNERING_VENSTER_MIN = 60;
 const WEEKHERINNERING_MARGE_UREN = 1;
 
 // Eén rij uit vaste_speelmomenten, samengevoegd met de profielvelden die

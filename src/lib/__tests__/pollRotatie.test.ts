@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { kiesRotatieBatch } from "../../../scripts/poll-availability";
+import { kiesRotatieBatch, ROTATIE_GROOTTE, ROTATIE_BLOK_MINUTEN } from "../../../scripts/poll-availability";
 
 describe("kiesRotatieBatch", () => {
   it("geeft een lege lijst bij geen niet-gevolgde clubs", () => {
@@ -15,18 +15,23 @@ describe("kiesRotatieBatch", () => {
     const clubs = Array.from({ length: 20 }, (_, i) => `club-${String(i).padStart(2, "0")}`);
     const batch = kiesRotatieBatch(clubs, new Date("2026-07-30T10:00:00Z"));
     expect(batch.length).toBeGreaterThan(0);
-    expect(batch.length).toBeLessThanOrEqual(8);
+    expect(batch.length).toBeLessThanOrEqual(ROTATIE_GROOTTE);
     // Elk gekozen id moet uit de oorspronkelijke lijst komen.
     batch.forEach((id) => expect(clubs).toContain(id));
   });
 
   it("schuift naar een ander blok naarmate de tijd verstrijkt", () => {
-    // 20 clubs / blokgrootte 8 = 3 blokken van 5 min → cyclus van 15 min. Een
-    // sprong van 5 min (één blok) laat gegarandeerd een ander blok zien i.p.v.
-    // toevallig weer hetzelfde na een veelvoud van de volledige cyclus.
+    // 20 clubs / ROTATIE_GROOTTE(8) = 3 blokken van ROTATIE_BLOK_MINUTEN →
+    // een sprong van precies één blok laat gegarandeerd een ander blok zien
+    // i.p.v. toevallig weer hetzelfde na een veelvoud van de volledige
+    // cyclus. Bewust afgeleid van de echte constanten i.p.v. een hardcoded
+    // stap — dit brak stil toen het polling-interval van 5 naar 30 min ging
+    // terwijl deze test nog 5 minuten sprong (4/5 aug 2026).
     const clubs = Array.from({ length: 20 }, (_, i) => `club-${String(i).padStart(2, "0")}`);
-    const batch1 = kiesRotatieBatch(clubs, new Date("2026-07-30T10:00:00Z"));
-    const batch2 = kiesRotatieBatch(clubs, new Date("2026-07-30T10:05:00Z"));
+    const start = new Date("2026-07-30T10:00:00Z");
+    const eenBlokLater = new Date(start.getTime() + ROTATIE_BLOK_MINUTEN * 60 * 1000);
+    const batch1 = kiesRotatieBatch(clubs, start);
+    const batch2 = kiesRotatieBatch(clubs, eenBlokLater);
     expect(batch1).not.toEqual(batch2);
   });
 
@@ -40,9 +45,11 @@ describe("kiesRotatieBatch", () => {
     const clubs = Array.from({ length: 17 }, (_, i) => `club-${String(i).padStart(2, "0")}`);
     const geziene = new Set<string>();
     const start = new Date("2026-07-30T00:00:00Z").getTime();
-    // 5 minuten per blok, dus binnen ruim voldoende blokken moet alles voorbijkomen.
+    // ceil(17 / ROTATIE_GROOTTE) blokken nodig voor volledige dekking — 10
+    // stappen van ROTATIE_BLOK_MINUTEN is ruim voldoende, ongeacht wat die
+    // laatste op dit moment toevallig is.
     for (let blok = 0; blok < 10; blok++) {
-      kiesRotatieBatch(clubs, new Date(start + blok * 5 * 60 * 1000)).forEach((id) => geziene.add(id));
+      kiesRotatieBatch(clubs, new Date(start + blok * ROTATIE_BLOK_MINUTEN * 60 * 1000)).forEach((id) => geziene.add(id));
     }
     clubs.forEach((id) => expect(geziene).toContain(id));
   });
