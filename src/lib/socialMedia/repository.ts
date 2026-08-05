@@ -1,6 +1,7 @@
 import { CLUBS_INCLUSIEF_LEDENCLUBS } from "@/lib/clubs";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { bouwBeschikbaarheidsConcept, HERHALINGSVENSTER_DAGEN, kiesInteressantsteBeschikbaarheid } from "./generator";
+import { LAUNCH_CAMPAGNE } from "./campaign";
 import type { BeschikbaarheidsKandidaat, BeschikbaarheidsSlot, GegenereerdConcept, SocialPostStatus, SocialVisual } from "./types";
 
 const DAGEN_VOORUIT = 7;
@@ -126,6 +127,42 @@ export async function genereerEnBewaarConcept(nu: Date = new Date()): Promise<st
     .single();
   if (error) throw new Error(`Concept opslaan mislukt: ${error.message}`);
   return data.id as string;
+}
+
+export async function planLaunchCampagne(nu: Date = new Date()): Promise<{ aangemaakt: number; overgeslagen: number }> {
+  const supabase = supabaseAdmin();
+  const sleutels = LAUNCH_CAMPAGNE.map((post) => post.subjectKey);
+  const { data: bestaande, error: leesFout } = await supabase
+    .from("social_media_posts")
+    .select("subject_key")
+    .in("subject_key", sleutels);
+  if (leesFout) throw new Error(`Bestaande launchcampagne lezen mislukt: ${leesFout.message}`);
+  const bestaand = new Set((bestaande ?? []).map((rij) => rij.subject_key as string));
+  const nieuw = LAUNCH_CAMPAGNE.filter((post) => !bestaand.has(post.subjectKey));
+  if (nieuw.length === 0) return { aangemaakt: 0, overgeslagen: LAUNCH_CAMPAGNE.length };
+
+  const { error } = await supabase.from("social_media_posts").insert(nieuw.map((post) => ({
+    status: "pending_approval",
+    content_type: post.contentType,
+    subject_key: post.subjectKey,
+    subject_type: "national",
+    subject_id: post.subjectId,
+    caption: post.caption,
+    hashtags: post.hashtags,
+    visual: post.visual,
+    data_snapshot: {
+      campaign: "launch-2026",
+      strategyPosition: post.strategyPosition,
+      format: post.format,
+      cadenceDays: 3,
+      existingIntroductionPostIsPosition1: true,
+    },
+    scheduled_for: post.scheduledFor,
+    platforms: ["instagram", "facebook"],
+    log: [{ at: nu.toISOString(), event: "campaign_post_planned", mode: "approval", scheduledFor: post.scheduledFor }],
+  })));
+  if (error) throw new Error(`Launchcampagne plannen mislukt: ${error.message}`);
+  return { aangemaakt: nieuw.length, overgeslagen: LAUNCH_CAMPAGNE.length - nieuw.length };
 }
 
 export async function haalSocialPostsVoorBeheer(): Promise<SocialPostVoorBeheer[]> {

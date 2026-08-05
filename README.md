@@ -32,6 +32,9 @@ toont het concept zonder iets op te slaan. Zonder `--dry-run` wordt maximaal
 gebeurt via `/beheer/social-media`; alleen e-mailadressen uit
 `SOCIAL_MEDIA_ADMIN_EMAILS` hebben toegang. Deze MVP bevat bewust nog geen
 Meta-token of publicatiestap en kan dus niets automatisch publiceren.
+De bestaande introductiepost geldt als nummer 1. `npm run social:plan-launch`
+plant de vier resterende launchposts idempotent om de drie dagen in
+goedkeuringsmodus.
 
 ## Docker
 ```bash

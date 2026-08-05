@@ -12,7 +12,7 @@ export type BeschikbaarheidsKandidaat = {
   sloten: BeschikbaarheidsSlot[];
 };
 
-export type SocialVisual = {
+export type AvailabilityVisual = {
   template: "availability-v1";
   eyebrow: string;
   headline: string;
@@ -21,6 +21,23 @@ export type SocialVisual = {
   cta: string;
   accent: "court-ball";
 };
+
+export type EditorialSlide = {
+  eyebrow: string;
+  lines: Array<{ text: string; accent?: boolean }>;
+  body?: string;
+  chips?: string[];
+  cta?: string;
+  motif: "radar" | "telegram" | "builder" | "free";
+};
+
+export type EditorialVisual = {
+  template: "editorial-carousel-v1";
+  slides: EditorialSlide[];
+  accent: "court-ball";
+};
+
+export type SocialVisual = AvailabilityVisual | EditorialVisual;
 
 export type GegenereerdConcept = {
   status: "pending_approval";

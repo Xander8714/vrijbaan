@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { haalSocialMediaAdmin } from "@/lib/socialMedia/admin";
 import { haalSocialPostsVoorBeheer } from "@/lib/socialMedia/repository";
+import { aantalSocialVisualSlides } from "@/lib/socialMedia/visual";
 import { archiveerConceptAction, genereerConceptAction, keurConceptGoedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,16 @@ function datumTijd(waarde: string | null): string {
     timeStyle: "short",
     timeZone: "Europe/Amsterdam",
   }).format(new Date(waarde));
+}
+
+function datumTijdInput(waarde: string | null): string | undefined {
+  if (!waarde) return undefined;
+  const delen = new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hour12: false, timeZone: "Europe/Amsterdam",
+  }).formatToParts(new Date(waarde));
+  const deel = (type: Intl.DateTimeFormatPartTypes) => delen.find((item) => item.type === type)?.value ?? "";
+  return `${deel("year")}-${deel("month")}-${deel("day")}T${deel("hour")}:${deel("minute")}`;
 }
 
 export default async function SocialMediaBeheerPage() {
@@ -62,14 +73,13 @@ export default async function SocialMediaBeheerPage() {
           <div className="mt-4 grid gap-6 lg:grid-cols-2">
             {wachtend.map((post) => (
               <article key={post.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <Image
-                  src={`/api/beheer/social-media/${post.id}/visual`}
-                  alt={`Socialmedia-visual voor ${post.city ?? "De Vrije Baan"}`}
-                  width={1080}
-                  height={1080}
-                  className="aspect-square w-full object-cover"
-                  unoptimized
-                />
+                <div className={`grid ${aantalSocialVisualSlides(post.visual) > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {Array.from({ length: aantalSocialVisualSlides(post.visual) }, (_, slide) => (
+                    <Image key={slide} src={`/api/beheer/social-media/${post.id}/visual?slide=${slide}`}
+                      alt={`Socialmedia-visual ${slide + 1} voor ${post.city ?? "De Vrije Baan"}`}
+                      width={1080} height={1080} className="aspect-square w-full object-cover" unoptimized />
+                  ))}
+                </div>
                 <div className="p-5">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide">
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-800">Wacht op goedkeuring</span>
@@ -85,7 +95,7 @@ export default async function SocialMediaBeheerPage() {
                       <input type="hidden" name="id" value={post.id} />
                       <label className="flex-1 text-sm font-medium text-slate-700">
                         Publicatiemoment (optioneel)
-                        <input name="scheduledFor" type="datetime-local" className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2" />
+                        <input name="scheduledFor" type="datetime-local" defaultValue={datumTijdInput(post.scheduledFor)} className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2" />
                       </label>
                       <button className="rounded-md bg-court-700 px-4 py-2 font-semibold text-white hover:bg-court-800">
                         Goedkeuren
