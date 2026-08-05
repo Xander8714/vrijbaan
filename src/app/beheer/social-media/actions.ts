@@ -1,8 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { archiveerConcept, genereerEnBewaarConcept, genereerEnBewaarTellingConcept, keurConceptGoed } from "@/lib/socialMedia/repository";
+import { archiveerConcept, genereerEnBewaarAvondConcept, genereerEnBewaarConcept, keurConceptGoed } from "@/lib/socialMedia/repository";
 import { vereisSocialMediaAdmin } from "@/lib/socialMedia/admin";
+
+export type GenereerConceptState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
+function foutmelding(fout: unknown): string {
+  return fout instanceof Error ? fout.message : "Concept genereren mislukt.";
+}
 
 function verplichtId(formData: FormData): string {
   const id = formData.get("id");
@@ -10,16 +19,28 @@ function verplichtId(formData: FormData): string {
   return id;
 }
 
-export async function genereerConceptAction(): Promise<void> {
-  await vereisSocialMediaAdmin();
-  await genereerEnBewaarConcept();
-  revalidatePath("/beheer/social-media");
+export async function genereerConceptAction(_vorige: GenereerConceptState): Promise<GenereerConceptState> {
+  void _vorige;
+  try {
+    await vereisSocialMediaAdmin();
+    await genereerEnBewaarConcept();
+    revalidatePath("/beheer/social-media");
+    return { status: "success", message: "Nieuw clubconcept staat klaar voor goedkeuring." };
+  } catch (fout) {
+    return { status: "error", message: foutmelding(fout) };
+  }
 }
 
-export async function genereerTellingConceptAction(): Promise<void> {
-  await vereisSocialMediaAdmin();
-  await genereerEnBewaarTellingConcept();
-  revalidatePath("/beheer/social-media");
+export async function genereerAvondConceptAction(_vorige: GenereerConceptState): Promise<GenereerConceptState> {
+  void _vorige;
+  try {
+    await vereisSocialMediaAdmin();
+    await genereerEnBewaarAvondConcept();
+    revalidatePath("/beheer/social-media");
+    return { status: "success", message: "De dagelijkse 3-stedenpost staat klaar voor goedkeuring." };
+  } catch (fout) {
+    return { status: "error", message: foutmelding(fout) };
+  }
 }
 
 export async function keurConceptGoedAction(formData: FormData): Promise<void> {

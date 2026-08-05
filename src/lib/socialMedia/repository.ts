@@ -3,8 +3,10 @@ import { alleTestregioClubs } from "@/lib/stadsPaginas";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   bouwBeschikbaarheidsConcept,
+  bouwDagelijkseAvondConcept,
   bouwDagelijkseTellingConcept,
   HERHALINGSVENSTER_DAGEN,
+  kiesDagelijkseAvondBeschikbaarheid,
   kiesDagelijkseTelling,
   kiesInteressantsteBeschikbaarheid,
 } from "./generator";
@@ -205,6 +207,22 @@ export async function genereerConceptVoorbeeldTelling(nu: Date = new Date()): Pr
 
 export async function genereerEnBewaarTellingConcept(nu: Date = new Date()): Promise<string> {
   const concept = await genereerConceptVoorbeeldTelling(nu);
+  const id = await bewaarConcept(concept, nu);
+  await meldNieuwConceptViaTelegram(id, concept);
+  return id;
+}
+
+export async function genereerConceptVoorbeeldAvond(nu: Date = new Date()): Promise<GegenereerdConcept> {
+  const kandidaten = await haalKandidatenVoorTelling(nu);
+  const kandidaat = kiesDagelijkseAvondBeschikbaarheid(kandidaten, isoDatum(nu), nu);
+  if (!kandidaat) {
+    throw new Error("Nog geen actuele avondbeschikbaarheid in minimaal drie teststeden tussen 17:00 en 21:30.");
+  }
+  return bouwDagelijkseAvondConcept(kandidaat);
+}
+
+export async function genereerEnBewaarAvondConcept(nu: Date = new Date()): Promise<string> {
+  const concept = await genereerConceptVoorbeeldAvond(nu);
   const id = await bewaarConcept(concept, nu);
   await meldNieuwConceptViaTelegram(id, concept);
   return id;

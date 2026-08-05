@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { haalSocialMediaAdmin } from "@/lib/socialMedia/admin";
 import { haalSocialPostsVoorBeheer } from "@/lib/socialMedia/repository";
 import { aantalSocialVisualSlides } from "@/lib/socialMedia/visual";
-import { archiveerConceptAction, genereerConceptAction, genereerTellingConceptAction, keurConceptGoedAction } from "./actions";
+import { archiveerConceptAction, keurConceptGoedAction } from "./actions";
+import { ConceptGeneratorKnoppen } from "./ConceptGeneratorKnoppen";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Socialmediabeheer", robots: { index: false, follow: false } };
@@ -39,6 +40,12 @@ function datumTijdInput(waarde: string | null): string | undefined {
   return `${deel("year")}-${deel("month")}-${deel("day")}T${deel("hour")}:${deel("minute")}`;
 }
 
+function datumAmsterdam(datum: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Amsterdam",
+  }).format(datum);
+}
+
 export default async function SocialMediaBeheerPage() {
   const admin = await haalSocialMediaAdmin();
   if (!admin) {
@@ -48,6 +55,10 @@ export default async function SocialMediaBeheerPage() {
   const posts = await haalSocialPostsVoorBeheer();
   const wachtend = posts.filter((post) => post.status === "pending_approval");
   const verwerkt = posts.filter((post) => post.status !== "pending_approval");
+  const bestaandeAvondpost = posts.find((post) => post.subjectKey === `daily-evening:${datumAmsterdam(new Date())}`);
+  const avondGeblokkeerd = bestaandeAvondpost
+    ? `Voor vandaag bestaat al een 3-stedenpost met status ${STATUS_LABEL[bestaandeAvondpost.status] ?? bestaandeAvondpost.status}.`
+    : null;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
@@ -59,22 +70,7 @@ export default async function SocialMediaBeheerPage() {
             Goedkeuringsmodus: niets gaat live zonder jouw goedkeuring. Daarna publiceert de worker direct of op het gekozen moment.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <form action={genereerConceptAction}>
-            <button className="rounded-lg bg-court-700 px-5 py-3 font-semibold text-white shadow-sm hover:bg-court-800">
-              Genereer nieuw concept
-            </button>
-          </form>
-          {/* Telt clubs met een vrije plek op hetzelfde moment vandaag, in
-              je 6 testeden (5 aug 2026) — apart van het club-concept
-              hierboven, want een andere databron (alle testregio-clubs
-              tegelijk i.p.v. één club) en ander contenttype ("statistic"). */}
-          <form action={genereerTellingConceptAction}>
-            <button className="rounded-lg border border-court-700 px-5 py-3 font-semibold text-court-700 shadow-sm hover:bg-court-50">
-              Genereer tellingpost
-            </button>
-          </form>
-        </div>
+        <ConceptGeneratorKnoppen avondGeblokkeerd={avondGeblokkeerd} />
       </div>
 
       <section className="mt-10">

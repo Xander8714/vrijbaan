@@ -1,4 +1,4 @@
-import type { EditorialSlide, SocialVisual } from "./types";
+import type { AvailabilityVisual, EditorialSlide, SocialVisual } from "./types";
 
 function escapeXml(waarde: string): string {
   return waarde.replace(/[<>&\"']/g, (teken) => ({
@@ -49,7 +49,7 @@ function renderEditorialSlide(slide: EditorialSlide, index: number, totaal: numb
 }
 
 export function aantalSocialVisualSlides(visual: SocialVisual): number {
-  return visual.template === "editorial-carousel-v1" ? visual.slides.length : 1;
+  return visual.template === "availability-v1" ? 1 : visual.slides.length;
 }
 
 export function renderSocialVisualSvg(visual: SocialVisual, slideIndex = 0): string {
@@ -57,6 +57,14 @@ export function renderSocialVisualSvg(visual: SocialVisual, slideIndex = 0): str
     const begrensd = Math.max(0, Math.min(slideIndex, visual.slides.length - 1));
     return renderEditorialSlide(visual.slides[begrensd], begrensd, visual.slides.length);
   }
+  if (visual.template === "availability-carousel-v1") {
+    const begrensd = Math.max(0, Math.min(slideIndex, visual.slides.length - 1));
+    return renderAvailabilitySlide(visual.slides[begrensd], begrensd, visual.slides.length);
+  }
+  return renderAvailabilitySlide(visual, 0, 1);
+}
+
+function renderAvailabilitySlide(visual: AvailabilityVisual, slideIndex: number, totaal: number): string {
   const tijden = visual.times
     .slice(0, 5)
     .map((tijd, index) => {
@@ -78,5 +86,6 @@ export function renderSocialVisualSvg(visual: SocialVisual, slideIndex = 0): str
   ${tijden}
   <text x="90" y="990" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">Vrije<tspan fill="#ccff33">Baan</tspan></text>
   <text x="990" y="990" text-anchor="end" font-family="Arial, sans-serif" font-size="28" fill="#d9f5ef">${escapeXml(kortTekst(visual.cta, 42))}</text>
+  ${totaal > 1 ? `<text x="990" y="930" text-anchor="end" font-family="Arial, sans-serif" font-size="24" fill="#63847d">${slideIndex + 1}/${totaal}</text>` : ""}
 </svg>`;
 }

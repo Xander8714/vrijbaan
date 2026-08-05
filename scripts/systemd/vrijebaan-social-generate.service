@@ -1,0 +1,14 @@
+[Unit]
+Description=Maak de dagelijkse VrijeBaan 3-steden-avondpost
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=xander8714
+WorkingDirectory=/opt/vrijebaan
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run social:generate-evening:refresh
+TimeoutStartSec=20min
+
+# Het script leest /opt/vrijebaan/.env.local zelf via @next/env.

@@ -1,5 +1,6 @@
 import type {
   BeschikbaarheidsKandidaat,
+  DagelijkseAvondKandidaat,
   DagelijkseTellingKandidaat,
   EditorialVisual,
   GegenereerdConcept,
@@ -11,6 +12,9 @@ const MAX_TIJDEN_OP_VISUAL = 5;
 const MAX_BRON_OUDERDOM_UREN = 2;
 const EERSTE_SOCIALMEDIA_STARTTIJD_MINUTEN = 8 * 60;
 const LAATSTE_SOCIALMEDIA_STARTTIJD_MINUTEN_EXCLUSIEF = 22 * 60;
+const EERSTE_SPITS_STARTTIJD_MINUTEN = 17 * 60;
+const LAATSTE_SPITS_STARTTIJD_MINUTEN_INCLUSIEF = 21 * 60 + 30;
+const SPITS_MIDDEN_MINUTEN = 19 * 60;
 
 // Onder dit aantal clubs voelt "X clubs hebben nu plek" te mager voor een
 // publieke post (5 aug 2026, bij het bouwen van de dagelijkse tellingpost).
@@ -53,15 +57,32 @@ function isGeschikteSocialmediaStarttijd(startTime: string): boolean {
   );
 }
 
+function isSpitsStarttijd(startTime: string): boolean {
+  const match = /^(\d{2}):(\d{2})$/.exec(startTime);
+  if (!match) return false;
+  const uur = Number(match[1]);
+  const minuut = Number(match[2]);
+  if (uur > 23 || minuut > 59) return false;
+  const minuten = uur * 60 + minuut;
+  return minuten >= EERSTE_SPITS_STARTTIJD_MINUTEN && minuten <= LAATSTE_SPITS_STARTTIJD_MINUTEN_INCLUSIEF;
+}
+
 function geschikteSocialmediaSloten(kandidaat: BeschikbaarheidsKandidaat): BeschikbaarheidsKandidaat["sloten"] {
   return kandidaat.sloten.filter((slot) => isGeschikteSocialmediaStarttijd(slot.startTime));
 }
 
+function relevanteSocialmediaSloten(kandidaat: BeschikbaarheidsKandidaat): BeschikbaarheidsKandidaat["sloten"] {
+  const geschikteSloten = geschikteSocialmediaSloten(kandidaat);
+  const spitsSloten = geschikteSloten.filter((slot) => isSpitsStarttijd(slot.startTime));
+  return spitsSloten.length > 0 ? spitsSloten : geschikteSloten;
+}
+
 function score(kandidaat: BeschikbaarheidsKandidaat, nu: Date): number {
-  const uniekeTijden = new Set(geschikteSocialmediaSloten(kandidaat).map((slot) => slot.startTime)).size;
+  const geschikteTijden = new Set(geschikteSocialmediaSloten(kandidaat).map((slot) => slot.startTime));
+  const spitsTijden = [...geschikteTijden].filter(isSpitsStarttijd).length;
   const dagenVooruit = Math.max(0, dagenTussen(nu, kandidaat.datum));
   const ouderdomUren = Math.max(0, (nu.getTime() - new Date(kandidaat.bijgewerktOp).getTime()) / 3_600_000);
-  return uniekeTijden * 100 - dagenVooruit * 8 - ouderdomUren;
+  return spitsTijden * 1_000 + geschikteTijden.size * 10 - dagenVooruit * 8 - ouderdomUren;
 }
 
 export function kiesInteressantsteBeschikbaarheid(
@@ -84,7 +105,7 @@ export function kiesInteressantsteBeschikbaarheid(
 }
 
 export function bouwBeschikbaarheidsConcept(kandidaat: BeschikbaarheidsKandidaat): GegenereerdConcept {
-  const sloten = geschikteSocialmediaSloten(kandidaat);
+  const sloten = relevanteSocialmediaSloten(kandidaat);
   const tijden = [...new Set(sloten.map((slot) => slot.startTime))].sort();
   if (tijden.length === 0) throw new Error("Geen geschikte starttijden tussen 08:00 en 22:00 voor socialmediacontent.");
   const label = datumLabel(kandidaat.datum);
@@ -162,9 +183,7 @@ export function kiesDagelijkseTelling(
     if (kandidaat.datum !== vandaag) continue;
     const ouderdomUren = Math.max(0, (nu.getTime() - new Date(kandidaat.bijgewerktOp).getTime()) / 3_600_000);
     if (ouderdomUren > MAX_BRON_OUDERDOM_UREN) continue;
-    const tijden = new Set(
-      geschikteSocialmediaSloten(kandidaat).map((slot) => slot.startTime)
-    );
+    const tijden = new Set(kandidaat.sloten.filter((slot) => isSpitsStarttijd(slot.startTime)).map((slot) => slot.startTime));
     for (const tijd of tijden) {
       const lijst = perTijd.get(tijd) ?? [];
       lijst.push(kandidaat);
@@ -174,10 +193,17 @@ export function kiesDagelijkseTelling(
 
   let beste: { tijd: string; clubs: BeschikbaarheidsKandidaat[] } | null = null;
   for (const [tijd, clubs] of perTijd) {
+    const afstandTotSpitsMidden = Math.abs(
+      Number(tijd.slice(0, 2)) * 60 + Number(tijd.slice(3, 5)) - SPITS_MIDDEN_MINUTEN
+    );
+    const besteAfstandTotSpitsMidden = beste
+      ? Math.abs(Number(beste.tijd.slice(0, 2)) * 60 + Number(beste.tijd.slice(3, 5)) - SPITS_MIDDEN_MINUTEN)
+      : Number.POSITIVE_INFINITY;
     const beter =
       !beste ||
       clubs.length > beste.clubs.length ||
-      (clubs.length === beste.clubs.length && tijd < beste.tijd); // deterministische tie-break: vroegste tijd wint
+      (clubs.length === beste.clubs.length && afstandTotSpitsMidden < besteAfstandTotSpitsMidden) ||
+      (clubs.length === beste.clubs.length && afstandTotSpitsMidden === besteAfstandTotSpitsMidden && tijd < beste.tijd);
     if (beter) beste = { tijd, clubs };
   }
 
@@ -191,6 +217,105 @@ export function kiesDagelijkseTelling(
       (oudste, c) => (c.bijgewerktOp < oudste ? c.bijgewerktOp : oudste),
       beste.clubs[0].bijgewerktOp
     ),
+  };
+}
+
+function socialmediaStadNaam(stad: string): string {
+  return stad === "'s-Gravenhage" ? "Den Haag" : stad;
+}
+
+/**
+ * Bouwt de dagelijkse avondselectie voor precies drie teststeden. Alleen
+ * actuele starttijden van 17:00 t/m 21:30 tellen mee; per stad worden tijden
+ * over alle clubs heen gededupliceerd.
+ */
+export function kiesDagelijkseAvondBeschikbaarheid(
+  kandidaten: BeschikbaarheidsKandidaat[],
+  vandaag: string,
+  nu: Date = new Date()
+): DagelijkseAvondKandidaat | null {
+  const perStad = new Map<string, { clubIds: Set<string>; tijden: Set<string>; bijgewerktOp: string[] }>();
+
+  for (const kandidaat of kandidaten) {
+    if (kandidaat.datum !== vandaag) continue;
+    const bijgewerktOp = new Date(kandidaat.bijgewerktOp).getTime();
+    if (!Number.isFinite(bijgewerktOp) || nu.getTime() - bijgewerktOp > MAX_BRON_OUDERDOM_UREN * 3_600_000) continue;
+    const tijden = kandidaat.sloten.filter((slot) => isSpitsStarttijd(slot.startTime)).map((slot) => slot.startTime);
+    if (tijden.length === 0) continue;
+    const stad = socialmediaStadNaam(kandidaat.stad);
+    const groep = perStad.get(stad) ?? { clubIds: new Set<string>(), tijden: new Set<string>(), bijgewerktOp: [] };
+    groep.clubIds.add(kandidaat.clubId);
+    tijden.forEach((tijd) => groep.tijden.add(tijd));
+    groep.bijgewerktOp.push(kandidaat.bijgewerktOp);
+    perStad.set(stad, groep);
+  }
+
+  const steden = [...perStad.entries()]
+    .sort((a, b) =>
+      b[1].tijden.size - a[1].tijden.size ||
+      b[1].clubIds.size - a[1].clubIds.size ||
+      a[0].localeCompare(b[0], "nl")
+    )
+    .slice(0, 3);
+  if (steden.length < 3) return null;
+
+  return {
+    datum: vandaag,
+    steden: steden.map(([stad, groep]) => ({
+      stad,
+      clubIds: [...groep.clubIds].sort(),
+      tijden: [...groep.tijden].sort(),
+    })),
+    oudsteBijgewerktOp: steden
+      .flatMap(([, groep]) => groep.bijgewerktOp)
+      .reduce((oudste, waarde) => (waarde < oudste ? waarde : oudste)),
+  };
+}
+
+export function bouwDagelijkseAvondConcept(kandidaat: DagelijkseAvondKandidaat): GegenereerdConcept {
+  const label = datumLabel(kandidaat.datum);
+  const hashtags = ["padel", "padelbaan", "vrijebaan", "vanavondpadel", "padelnederland"];
+  const stadsRegels = kandidaat.steden
+    .map((stad) => `📍 ${stad.stad}: ${stad.tijden.join(", ")}`)
+    .join("\n");
+  const caption =
+    `Vanavond nog padellen? 🎾\n\n` +
+    `Dit is er voor ${label} tussen 17:00 en 21:30 vrij in drie steden:\n\n` +
+    `${stadsRegels}\n\n` +
+    `Beschikbaarheid verandert snel. Bekijk de live Radar en boek direct via devrijebaan.nl/radar.\n\n` +
+    hashtags.map((tag) => `#${tag}`).join(" ");
+
+  return {
+    status: "pending_approval",
+    contentType: "availability",
+    subjectKey: `daily-evening:${kandidaat.datum}`,
+    subjectType: "national",
+    subjectId: "daily-evening",
+    city: null,
+    clubId: null,
+    caption,
+    hashtags,
+    visual: {
+      template: "availability-carousel-v1",
+      accent: "court-ball",
+      slides: kandidaat.steden.map((stad) => ({
+        template: "availability-v1",
+        eyebrow: "VANAVOND NOG PADELEN?",
+        headline: stad.stad,
+        subline: `${label} • ${stad.tijden.length} ${stad.tijden.length === 1 ? "tijd" : "tijden"}`,
+        times: stad.tijden.slice(0, MAX_TIJDEN_OP_VISUAL),
+        cta: "Bekijk live op devrijebaan.nl/radar",
+        accent: "court-ball",
+      })),
+    },
+    dataSnapshot: {
+      datum: kandidaat.datum,
+      venster: { vanaf: "17:00", totEnMet: "21:30" },
+      steden: kandidaat.steden,
+      selectie: "drie_steden_met_meeste_actuele_avondtijden",
+    },
+    sourceUpdatedAt: kandidaat.oudsteBijgewerktOp,
+    platforms: ["instagram", "facebook"],
   };
 }
 
@@ -256,6 +381,7 @@ export function bouwDagelijkseTellingConcept(kandidaat: DagelijkseTellingKandida
 export {
   HERHALINGSVENSTER_DAGEN,
   isGeschikteSocialmediaStarttijd,
+  isSpitsStarttijd,
   MAX_BRON_OUDERDOM_UREN,
   MIN_CLUBS_VOOR_TELLING,
 };

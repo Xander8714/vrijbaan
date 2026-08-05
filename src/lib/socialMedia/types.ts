@@ -37,7 +37,13 @@ export type EditorialVisual = {
   accent: "court-ball";
 };
 
-export type SocialVisual = AvailabilityVisual | EditorialVisual;
+export type AvailabilityCarouselVisual = {
+  template: "availability-carousel-v1";
+  slides: AvailabilityVisual[];
+  accent: "court-ball";
+};
+
+export type SocialVisual = AvailabilityVisual | AvailabilityCarouselVisual | EditorialVisual;
 
 export type GegenereerdConcept = {
   status: "pending_approval";
@@ -75,6 +81,18 @@ export type DagelijkseTellingKandidaat = {
   datum: string;
   tijd: string;
   clubs: TellingClub[];
+  oudsteBijgewerktOp: string;
+};
+
+export type AvondStadKandidaat = {
+  stad: string;
+  clubIds: string[];
+  tijden: string[];
+};
+
+export type DagelijkseAvondKandidaat = {
+  datum: string;
+  steden: AvondStadKandidaat[];
   oudsteBijgewerktOp: string;
 };
 

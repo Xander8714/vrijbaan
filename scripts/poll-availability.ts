@@ -76,6 +76,8 @@
  * Gebruik:
  *   npx tsx scripts/poll-availability.ts              (gevolgd + rotatiebatch)
  *   npx tsx scripts/poll-availability.ts --alles       (negeer selectie, alles pollen — traag, alleen voor test)
+ *   npx tsx scripts/poll-availability.ts --testregio --vandaag
+ *                                                    (dagelijkse socialpost: 6 teststeden, alleen vandaag)
  */
 
 // Dit script draait los van Next.js (via `npx tsx`), dus .env.local wordt NIET
@@ -105,6 +107,7 @@ import { binnenStraal } from "../src/lib/geo";
 import { binnenTijdvenster, naarMinuten } from "../src/lib/tijd";
 import { stuurTelegramBericht } from "../src/lib/telegram";
 import { bouwSessieLink, maakInlogToken } from "../src/lib/telegramSessie";
+import { alleTestregioClubs } from "../src/lib/stadsPaginas";
 
 // Vandaag + 2 dagen. Bewust LOSSE, kleinere constante van src/lib/tijd.ts se
 // DAGEN_VOORUIT (die is 31 juli 2026 naar 7 opgehoogd voor de Radar-weergave)
@@ -526,6 +529,14 @@ async function pollEenClubEnDag(clubId: string, datum: string, ontvangersPerClub
 
   const nieuweHash = hashSlots(sloten);
   if (vorige && vorige.slots_hash === nieuweHash) {
+    const { error: versheidsFout } = await supabase
+      .from("club_beschikbaarheid")
+      .update({ bijgewerkt_op: new Date().toISOString() })
+      .eq("club_id", clubId)
+      .eq("datum", datum);
+    if (versheidsFout) {
+      console.error(`[${clubId} ${datum}] controletijd bijwerken mislukt:`, versheidsFout.message);
+    }
     return; // niets veranderd, niets te doen
   }
 
@@ -554,13 +565,15 @@ async function pollEenClubEnDag(clubId: string, datum: string, ontvangersPerClub
 
 async function main(): Promise<void> {
   const vandaag = new Date();
-  const dagen = Array.from({ length: DAGEN_VOORUIT }, (_, i) => {
+  const aantalDagen = process.argv.includes("--vandaag") ? 1 : DAGEN_VOORUIT;
+  const dagen = Array.from({ length: aantalDagen }, (_, i) => {
     const d = new Date(vandaag);
     d.setDate(d.getDate() + i);
     return toISODate(d);
   });
 
   const alleGeforceerd = process.argv.includes("--alles");
+  const testregioGeforceerd = process.argv.includes("--testregio");
   const pollbareIds = Object.keys(POLL_CONFIG);
 
   const ontvangersPerClub = await haalOntvangersPerClub();
@@ -569,6 +582,10 @@ async function main(): Promise<void> {
   if (alleGeforceerd) {
     teVerwerken = pollbareIds;
     console.log(`[selectie] --alles opgegeven: alle ${teVerwerken.length} pollbare clubs (traag, alleen voor test).`);
+  } else if (testregioGeforceerd) {
+    const testregioIds = new Set(alleTestregioClubs().map((club) => club.id));
+    teVerwerken = pollbareIds.filter((id) => testregioIds.has(id));
+    console.log(`[selectie] --testregio opgegeven: ${teVerwerken.length} pollbare clubs uit de zes teststeden.`);
   } else {
     const gevolgd = await haalGevolgdeClubIds();
     const gevolgdPollbaar = pollbareIds.filter((id) => gevolgd.has(id));

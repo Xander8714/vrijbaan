@@ -40,24 +40,32 @@ advertentierechten toe. Nodig voor organisch publiceren:
 5. Deploy de applicatie, maar activeer de timer nog niet.
 6. Voer op de VPS `npm run social:meta-check` uit. Dit claimt of publiceert geen
    databasepost.
-7. Controleer dat `command -v npm` overeenkomt met `ExecStart` in de service.
-   Installeer daarna de twee units uit `scripts/systemd/`, voer
+7. Controleer dat `command -v npm` overeenkomt met `ExecStart` in de services.
+   Installeer daarna de vier units uit `scripts/systemd/`, voer
    `sudo systemctl daemon-reload` uit en activeer
-   `vrijebaan-social-publish.timer`.
+   `vrijebaan-social-publish.timer` en `vrijebaan-social-generate.timer`.
 8. Volg de eerste run met:
 
    ```bash
    systemctl status vrijebaan-social-publish.timer
+   systemctl status vrijebaan-social-generate.timer
    journalctl -u vrijebaan-social-publish.service -n 100 --no-pager
+   journalctl -u vrijebaan-social-generate.service -n 100 --no-pager
    ```
 
 De worker verwerkt maximaal vijf verschuldigde posts per minuut. Hij publiceert
 geen `pending_approval`-concepten. Bij een succesvolle publicatie verschijnen
 de Meta-post-id's en het live-tijdstip in `/beheer/social-media`.
 
+De generator ververst dagelijks vanaf 15:45 Europe/Amsterdam de 28 clubs uit
+de zes teststeden voor vandaag en maakt daarna één carrousel met de drie steden
+met de meeste beschikbare starttijden tussen 17:00 en 21:30. Het resultaat
+blijft `pending_approval` en wordt via Telegram aangeboden; de generator
+publiceert nooit zelfstandig.
+
 ## Reeds uitgevoerde lokale controles
 
-- `npm test`: 10 bestanden, 92 tests geslaagd
+- `npm test`: 10 bestanden, 107 tests geslaagd
 - `npx tsc --noEmit`: geslaagd
 - `npm run lint`: geen fouten; drie reeds bestaande waarschuwingen elders
 - `npm run build`: geslaagd met Next.js 16.2.11

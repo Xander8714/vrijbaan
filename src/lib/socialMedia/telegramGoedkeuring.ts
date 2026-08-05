@@ -1,7 +1,9 @@
-import "server-only";
-
 import { stuurTelegramBerichtMetKnoppen } from "@/lib/telegram";
 import type { GegenereerdConcept } from "./types";
+
+// Bewust geen `import "server-only"`: deze module draait uitsluitend via
+// servercode, maar wordt ook door de losse systemd/tsx-generator geladen.
+// De Next.js-only guard gooit buiten de React Server-runtime direct een fout.
 
 /**
  * Stuurt een goedkeuringsverzoek naar Xanders eigen Telegram-chat zodra een
