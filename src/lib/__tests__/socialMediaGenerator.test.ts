@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bouwBeschikbaarheidsConcept,
   bouwDagelijkseTellingConcept,
+  isGeschikteSocialmediaStarttijd,
   kiesDagelijkseTelling,
   kiesInteressantsteBeschikbaarheid,
 } from "../socialMedia/generator";
@@ -48,6 +49,49 @@ describe("socialmedia-generator", () => {
     if (concept.visual.template !== "availability-v1") throw new Error("Verkeerde visualtemplate");
     expect(concept.visual.times).toEqual(["18:00", "19:30"]);
     expect(concept.dataSnapshot).toMatchObject({ clubNaam: "Padel Centrum", datum: "2026-08-06" });
+  });
+
+  it("neemt alleen starttijden vanaf 08:00 en voor 22:00 mee", () => {
+    const metNachtelijkeSloten: BeschikbaarheidsKandidaat = {
+      ...basis,
+      sloten: [
+        { startTime: "00:00" },
+        { startTime: "07:30" },
+        { startTime: "08:00" },
+        { startTime: "21:30" },
+        { startTime: "22:00" },
+      ],
+    };
+
+    const gekozen = kiesInteressantsteBeschikbaarheid(
+      [metNachtelijkeSloten],
+      new Set(),
+      new Date("2026-08-05T10:00:00.000Z")
+    );
+    expect(gekozen?.sloten.map((slot) => slot.startTime)).toEqual(["08:00", "21:30"]);
+
+    const concept = bouwBeschikbaarheidsConcept(metNachtelijkeSloten);
+    if (concept.visual.template !== "availability-v1") throw new Error("Verkeerde visualtemplate");
+    expect(concept.visual.times).toEqual(["08:00", "21:30"]);
+    expect(concept.caption).toContain("2 vrije starttijden: 08:00, 21:30");
+    expect(concept.dataSnapshot.sloten).toEqual([{ startTime: "08:00" }, { startTime: "21:30" }]);
+  });
+
+  it("kiest geen club met uitsluitend nachtelijke starttijden", () => {
+    const gekozen = kiesInteressantsteBeschikbaarheid(
+      [{ ...basis, sloten: [{ startTime: "00:00" }, { startTime: "22:30" }] }],
+      new Set(),
+      new Date("2026-08-05T10:00:00.000Z")
+    );
+    expect(gekozen).toBeNull();
+  });
+
+  it("hanteert geldige en inclusieve grenzen voor socialmedia-starttijden", () => {
+    expect(isGeschikteSocialmediaStarttijd("07:59")).toBe(false);
+    expect(isGeschikteSocialmediaStarttijd("08:00")).toBe(true);
+    expect(isGeschikteSocialmediaStarttijd("21:59")).toBe(true);
+    expect(isGeschikteSocialmediaStarttijd("22:00")).toBe(false);
+    expect(isGeschikteSocialmediaStarttijd("25:00")).toBe(false);
   });
 
   it("escaped dynamische tekst in de SVG-template", () => {
@@ -100,6 +144,16 @@ describe("dagelijkse tellingpost (5 aug 2026)", () => {
     const gekozen = kiesDagelijkseTelling(clubs, vandaag, nu);
     expect(gekozen?.tijd).toBe("14:00");
     expect(gekozen?.clubs.map((c) => c.clubId).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("negeert een populair nachtelijk tijdstip bij de dagelijkse telling", () => {
+    const metNachtelijkeSloten = clubs.map((club) => ({
+      ...club,
+      sloten: [...club.sloten, { startTime: "00:00" }],
+    }));
+    const gekozen = kiesDagelijkseTelling(metNachtelijkeSloten, vandaag, nu);
+    expect(gekozen?.tijd).toBe("14:00");
+    expect(gekozen?.clubs).toHaveLength(3);
   });
 
   it("gebruikt de oudste bijgewerkt_op van de meegetelde clubs, niet de nieuwste", () => {

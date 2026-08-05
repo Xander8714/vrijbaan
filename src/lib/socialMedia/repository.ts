@@ -13,6 +13,7 @@ import { meldNieuwConceptViaTelegram } from "./telegramGoedkeuring";
 import type { BeschikbaarheidsKandidaat, BeschikbaarheidsSlot, GegenereerdConcept, SocialPostStatus, SocialVisual } from "./types";
 
 const DAGEN_VOORUIT = 7;
+const TESTREGIO_CLUB_IDS = new Set(alleTestregioClubs().map((club) => club.id));
 
 export type SocialPostVoorBeheer = {
   id: string;
@@ -54,6 +55,11 @@ function normaliseerSloten(waarde: unknown): BeschikbaarheidsSlot[] {
   });
 }
 
+/**
+ * Alleen clubs uit de zes teststeden gebruiken voor automatische content:
+ * Amsterdam, Haarlem, Groningen, Utrecht, Den Haag en Rijswijk. De landelijke
+ * clubdata blijft wel beschikbaar voor Radar en meldingen.
+ */
 async function haalBeschikbaarheidsKandidaten(nu: Date): Promise<BeschikbaarheidsKandidaat[]> {
   const supabase = supabaseAdmin();
   const einddatum = new Date(nu);
@@ -61,12 +67,14 @@ async function haalBeschikbaarheidsKandidaten(nu: Date): Promise<Beschikbaarheid
   const { data, error } = await supabase
     .from("club_beschikbaarheid")
     .select("club_id, datum, slots, bijgewerkt_op")
+    .in("club_id", [...TESTREGIO_CLUB_IDS])
     .gte("datum", isoDatum(nu))
     .lte("datum", isoDatum(einddatum));
   if (error) throw new Error(`Beschikbaarheid lezen mislukt: ${error.message}`);
 
   const clubs = new Map(CLUBS_INCLUSIEF_LEDENCLUBS.map((club) => [club.id, club]));
   return (data ?? []).flatMap((rij): BeschikbaarheidsKandidaat[] => {
+    if (!TESTREGIO_CLUB_IDS.has(rij.club_id as string)) return [];
     const club = clubs.get(rij.club_id as string);
     const sloten = normaliseerSloten(rij.slots);
     if (!club || sloten.length === 0) return [];
@@ -88,17 +96,17 @@ async function haalBeschikbaarheidsKandidaten(nu: Date): Promise<Beschikbaarheid
  */
 async function haalKandidatenVoorTelling(nu: Date): Promise<BeschikbaarheidsKandidaat[]> {
   const supabase = supabaseAdmin();
-  const testregioIds = new Set(alleTestregioClubs().map((club) => club.id));
   const { data, error } = await supabase
     .from("club_beschikbaarheid")
     .select("club_id, datum, slots, bijgewerkt_op")
+    .in("club_id", [...TESTREGIO_CLUB_IDS])
     .eq("datum", isoDatum(nu));
   if (error) throw new Error(`Beschikbaarheid lezen (telling) mislukt: ${error.message}`);
 
   const clubs = new Map(CLUBS_INCLUSIEF_LEDENCLUBS.map((club) => [club.id, club]));
   return (data ?? []).flatMap((rij): BeschikbaarheidsKandidaat[] => {
     const clubId = rij.club_id as string;
-    if (!testregioIds.has(clubId)) return [];
+    if (!TESTREGIO_CLUB_IDS.has(clubId)) return [];
     const club = clubs.get(clubId);
     const sloten = normaliseerSloten(rij.slots);
     if (!club || sloten.length === 0) return [];
@@ -120,7 +128,6 @@ async function haalRecentGebruikteClubs(nu: Date): Promise<Set<string>> {
     .from("social_media_posts")
     .select("club_id")
     .gte("created_at", vanaf.toISOString())
-    .neq("status", "archived")
     .not("club_id", "is", null);
   if (error) throw new Error(`Recente socialposts lezen mislukt: ${error.message}`);
   return new Set((data ?? []).map((rij) => rij.club_id as string));
@@ -143,14 +150,18 @@ export async function genereerConceptVoorbeeld(nu: Date = new Date()): Promise<G
  * exact dezelfde dubbelcheck-en-insert nodig, dus hier één keer.
  */
 async function bewaarConcept(concept: GegenereerdConcept, nu: Date): Promise<string> {
+  // Ook afgewezen/gearchiveerde concepten tellen mee. Anders levert de knop
+  // na een afwijzing direct opnieuw exact hetzelfde onderwerp op. `limit(1)`
+  // houdt deze controle bruikbaar voor historische data waarin zo'n dubbel
+  // onderwerp al voorkwam voordat deze blokkade bestond.
   const { data: bestaand, error: zoekFout } = await supabaseAdmin()
     .from("social_media_posts")
     .select("id")
     .eq("subject_key", concept.subjectKey)
-    .neq("status", "archived")
+    .limit(1)
     .maybeSingle();
   if (zoekFout) throw new Error(`Dubbelcheck van onderwerp mislukt: ${zoekFout.message}`);
-  if (bestaand) throw new Error("Voor dit onderwerp bestaat al een actief concept.");
+  if (bestaand) throw new Error("Voor dit onderwerp is al eerder een concept gemaakt.");
 
   const { data, error } = await supabaseAdmin()
     .from("social_media_posts")

@@ -9,6 +9,8 @@ import type {
 const HERHALINGSVENSTER_DAGEN = 14;
 const MAX_TIJDEN_OP_VISUAL = 5;
 const MAX_BRON_OUDERDOM_UREN = 2;
+const EERSTE_SOCIALMEDIA_STARTTIJD_MINUTEN = 8 * 60;
+const LAATSTE_SOCIALMEDIA_STARTTIJD_MINUTEN_EXCLUSIEF = 22 * 60;
 
 // Onder dit aantal clubs voelt "X clubs hebben nu plek" te mager voor een
 // publieke post (5 aug 2026, bij het bouwen van de dagelijkse tellingpost).
@@ -33,8 +35,30 @@ function dagenTussen(van: Date, totIsoDatum: string): number {
   return Math.round((Date.UTC(jaar, maand - 1, dag) - start) / 86_400_000);
 }
 
+/**
+ * Nachtelijke beschikbaarheid blijft bruikbaar voor Radar en meldingen, maar
+ * is geen zinvol onderwerp voor publieke socialmediacontent. 08:00 telt mee;
+ * 22:00 en later niet.
+ */
+function isGeschikteSocialmediaStarttijd(startTime: string): boolean {
+  const match = /^(\d{2}):(\d{2})$/.exec(startTime);
+  if (!match) return false;
+  const uur = Number(match[1]);
+  const minuut = Number(match[2]);
+  if (uur > 23 || minuut > 59) return false;
+  const minuten = uur * 60 + minuut;
+  return (
+    minuten >= EERSTE_SOCIALMEDIA_STARTTIJD_MINUTEN &&
+    minuten < LAATSTE_SOCIALMEDIA_STARTTIJD_MINUTEN_EXCLUSIEF
+  );
+}
+
+function geschikteSocialmediaSloten(kandidaat: BeschikbaarheidsKandidaat): BeschikbaarheidsKandidaat["sloten"] {
+  return kandidaat.sloten.filter((slot) => isGeschikteSocialmediaStarttijd(slot.startTime));
+}
+
 function score(kandidaat: BeschikbaarheidsKandidaat, nu: Date): number {
-  const uniekeTijden = new Set(kandidaat.sloten.map((slot) => slot.startTime)).size;
+  const uniekeTijden = new Set(geschikteSocialmediaSloten(kandidaat).map((slot) => slot.startTime)).size;
   const dagenVooruit = Math.max(0, dagenTussen(nu, kandidaat.datum));
   const ouderdomUren = Math.max(0, (nu.getTime() - new Date(kandidaat.bijgewerktOp).getTime()) / 3_600_000);
   return uniekeTijden * 100 - dagenVooruit * 8 - ouderdomUren;
@@ -47,6 +71,7 @@ export function kiesInteressantsteBeschikbaarheid(
 ): BeschikbaarheidsKandidaat | null {
   return (
     kandidaten
+      .map((kandidaat) => ({ ...kandidaat, sloten: geschikteSocialmediaSloten(kandidaat) }))
       .filter((kandidaat) => kandidaat.sloten.length > 0)
       .filter((kandidaat) => !recentGebruikteOnderwerpen.has(kandidaat.clubId))
       .filter((kandidaat) => dagenTussen(nu, kandidaat.datum) >= 0)
@@ -59,7 +84,9 @@ export function kiesInteressantsteBeschikbaarheid(
 }
 
 export function bouwBeschikbaarheidsConcept(kandidaat: BeschikbaarheidsKandidaat): GegenereerdConcept {
-  const tijden = [...new Set(kandidaat.sloten.map((slot) => slot.startTime))].sort();
+  const sloten = geschikteSocialmediaSloten(kandidaat);
+  const tijden = [...new Set(sloten.map((slot) => slot.startTime))].sort();
+  if (tijden.length === 0) throw new Error("Geen geschikte starttijden tussen 08:00 en 22:00 voor socialmediacontent.");
   const label = datumLabel(kandidaat.datum);
   const plaatsHashtag = hashtagVanPlaats(kandidaat.stad);
   const hashtags = ["padel", "padelbaan", "vrijebaan", plaatsHashtag ? `padel${plaatsHashtag}` : "padelnederland"];
@@ -95,7 +122,7 @@ export function bouwBeschikbaarheidsConcept(kandidaat: BeschikbaarheidsKandidaat
       clubNaam: kandidaat.clubNaam,
       stad: kandidaat.stad,
       datum: kandidaat.datum,
-      sloten: kandidaat.sloten,
+      sloten,
       herhalingsvensterDagen: HERHALINGSVENSTER_DAGEN,
     },
     sourceUpdatedAt: kandidaat.bijgewerktOp,
@@ -135,7 +162,9 @@ export function kiesDagelijkseTelling(
     if (kandidaat.datum !== vandaag) continue;
     const ouderdomUren = Math.max(0, (nu.getTime() - new Date(kandidaat.bijgewerktOp).getTime()) / 3_600_000);
     if (ouderdomUren > MAX_BRON_OUDERDOM_UREN) continue;
-    const tijden = new Set(kandidaat.sloten.map((slot) => slot.startTime));
+    const tijden = new Set(
+      geschikteSocialmediaSloten(kandidaat).map((slot) => slot.startTime)
+    );
     for (const tijd of tijden) {
       const lijst = perTijd.get(tijd) ?? [];
       lijst.push(kandidaat);
@@ -224,4 +253,9 @@ export function bouwDagelijkseTellingConcept(kandidaat: DagelijkseTellingKandida
   };
 }
 
-export { HERHALINGSVENSTER_DAGEN, MAX_BRON_OUDERDOM_UREN, MIN_CLUBS_VOOR_TELLING };
+export {
+  HERHALINGSVENSTER_DAGEN,
+  isGeschikteSocialmediaStarttijd,
+  MAX_BRON_OUDERDOM_UREN,
+  MIN_CLUBS_VOOR_TELLING,
+};
